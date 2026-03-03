@@ -1,0 +1,8 @@
+
+  Authentication failed: Invalid API key
+
+  Please check your API key configuration:
+  - Run `claude config set api_key <your-key>`
+  - Or set the ANTHROPIC_API_KEY environment variable
+
+  Error: unauthorized - The provided API key is not valid.

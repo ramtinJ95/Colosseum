@@ -1,0 +1,8 @@
+
+  I'd like to modify the following files:
+
+  - src/auth/handler.go (edit)
+  - src/auth/jwt.go (create)
+  - tests/auth_test.go (create)
+
+  approve | deny | explain

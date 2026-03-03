@@ -1,0 +1,5 @@
+
+  ⠙ Working on your request...
+
+  Analyzing the project structure to understand the authentication
+  implementation patterns used in this codebase.

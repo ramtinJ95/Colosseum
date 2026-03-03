@@ -1,0 +1,5 @@
+
+  ⠹ Thinking...
+
+  I'm analyzing the codebase to understand the authentication flow
+  before making changes to the login handler.

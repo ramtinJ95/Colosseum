@@ -1,0 +1,11 @@
+
+  I need to write to the configuration file to update the JWT secret.
+
+  ● Write file: config/auth.yaml
+
+  ─────────────────────────────────────────────────
+  Do you want to allow this action?
+
+  ❯ Yes, allow once
+    Allow always for this file
+    Deny

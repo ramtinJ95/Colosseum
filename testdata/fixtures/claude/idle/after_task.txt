@@ -1,0 +1,13 @@
+
+  Done! I've implemented the JWT authentication middleware with the
+  following changes:
+
+  - Created src/auth/jwt.go with token generation and validation
+  - Updated src/auth/handler.go to use JWT tokens
+  - Added src/auth/middleware.go for route protection
+  - Created tests in src/auth/jwt_test.go
+
+  All tests pass. The implementation uses HS256 signing with
+  configurable expiry times.
+
+>

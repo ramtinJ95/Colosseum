@@ -1,0 +1,8 @@
+
+  I found two possible approaches for implementing the token refresh:
+
+  1. Sliding window - extend expiry on each request
+  2. Refresh token - issue a separate long-lived token
+
+  Which approach would you prefer? Or should I implement both with a
+  configuration toggle?

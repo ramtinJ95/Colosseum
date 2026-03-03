@@ -1,0 +1,3 @@
+
+  Error: Rate limit exceeded. Too many requests (429).
+  Please wait before retrying.

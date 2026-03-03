@@ -1,0 +1,4 @@
+
+  Error: Authentication failed
+  Invalid API key. Please check your GEMINI_API_KEY environment variable.
+  unauthorized

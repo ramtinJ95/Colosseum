@@ -1,0 +1,9 @@
+
+  I'll continue implementing the auth middleware...
+
+  ⚠ Error: Rate limit exceeded (429 Too Many Requests)
+
+  You've hit the API rate limit. Please wait a moment before
+  continuing. Your conversation will be preserved.
+
+  Retrying in 30 seconds...

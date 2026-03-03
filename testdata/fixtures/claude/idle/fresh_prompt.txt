@@ -1,0 +1,6 @@
+
+  Welcome to Claude Code!
+
+  Type your prompt below to get started.
+
+>

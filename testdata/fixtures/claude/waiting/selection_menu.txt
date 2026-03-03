@@ -1,0 +1,7 @@
+
+  Which testing framework should I use for the integration tests?
+
+  ❯ 1. Standard testing package (recommended)
+    2. Testify with assertions
+    3. Ginkgo BDD-style
+    4. Custom test helpers

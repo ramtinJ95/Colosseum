@@ -1,0 +1,6 @@
+
+  I'll create the JWT middleware for authentication.
+
+  ● Write file: src/auth/jwt.go
+
+  ⠼ Writing src/auth/jwt.go (esc to interrupt)

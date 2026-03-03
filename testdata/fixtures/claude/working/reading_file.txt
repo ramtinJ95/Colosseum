@@ -1,0 +1,27 @@
+
+  ● Read file: src/auth/handler.go
+
+  I'll examine the authentication handler to understand the current
+  implementation before making changes.
+
+  src/auth/handler.go
+  ┌─────────────────────────────────────────────────────
+  │ package auth
+  │
+  │ import (
+  │     "net/http"
+  │     "time"
+  │ )
+  │
+  │ type Handler struct {
+  │     store SessionStore
+  │ }
+  │
+  │ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+  │     // ... existing implementation
+  │ }
+  └─────────────────────────────────────────────────────
+
+  Now I'll implement the JWT-based authentication...
+
+  ⠹ Reading src/auth/middleware.go (esc to interrupt)
