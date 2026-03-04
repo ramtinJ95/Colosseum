@@ -53,4 +53,5 @@ func (m *Model) SetTabs(tabs []string, active int) {
 func (m *Model) SetContent(title, content string) {
 	m.title = title
 	m.viewport.SetContent(content)
+	m.viewport.GotoBottom()
 }
