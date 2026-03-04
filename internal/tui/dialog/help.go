@@ -41,8 +41,16 @@ func (m HelpModel) View() string {
 		{"n", "New workspace"},
 		{"d", "Delete workspace"},
 		{"J", "Jump to next needing attention"},
+		{"b", "Broadcast prompt"},
+		{"D", "Diff viewer"},
+		{"r", "Rename workspace"},
+		{"/", "Filter workspaces"},
+		{"R", "Restart agent"},
+		{"s", "Stop agent"},
 		{"?", "Toggle this help"},
 		{"q", "Quit"},
+		{"", ""},
+		{"prefix+L", "Return to dashboard from workspace"},
 	}
 
 	var rows []string

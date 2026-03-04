@@ -58,6 +58,21 @@ func (p *Poller) Run(ctx context.Context) {
 func (p *Poller) poll(ctx context.Context) {
 	workspaces, err := p.provider.List()
 	if err != nil {
+		p.mu.Lock()
+		for id, prev := range p.statuses {
+			if prev != agent.StatusStopped {
+				p.statuses[id] = agent.StatusStopped
+				select {
+				case p.updates <- Update{
+					WorkspaceID: id,
+					Previous:    prev,
+					Current:     agent.StatusStopped,
+				}:
+				default:
+				}
+			}
+		}
+		p.mu.Unlock()
 		return
 	}
 

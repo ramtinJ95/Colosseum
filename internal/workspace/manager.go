@@ -31,6 +31,16 @@ func NewManager(store *Store, sessions SessionCreator, prefix string) *Manager {
 }
 
 func (m *Manager) Create(ctx context.Context, title string, agentType agent.AgentType, projectPath string, branch string, layout LayoutType) (*Workspace, error) {
+	existing, err := m.store.List()
+	if err != nil {
+		return nil, fmt.Errorf("checking existing workspaces: %w", err)
+	}
+	for _, ws := range existing {
+		if ws.Title == title {
+			return nil, fmt.Errorf("workspace %q already exists", title)
+		}
+	}
+
 	id := uuid.New().String()
 	sessionName := m.sessionPrefix + title
 
@@ -87,9 +97,7 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("workspace %q not found", id)
 	}
 
-	if err := m.sessions.KillSession(ctx, ws.Title); err != nil {
-		return fmt.Errorf("killing session for %q: %w", ws.Title, err)
-	}
+	_ = m.sessions.KillSession(ctx, ws.Title)
 
 	if err := m.store.Remove(id); err != nil {
 		return fmt.Errorf("removing workspace %q: %w", id, err)

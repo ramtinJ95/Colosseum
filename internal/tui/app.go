@@ -152,7 +152,7 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, a.keys.Enter):
 			if ws := a.sidebar.SelectedWorkspace(); ws != nil {
-				a.statusBar = fmt.Sprintf("Switching to %q...", ws.Title)
+				a.statusBar = fmt.Sprintf("Switched to %q — tmux prefix+L to return", ws.Title)
 				return a, a.switchToWorkspace(ws.ID)
 			}
 			return a, nil
@@ -299,7 +299,7 @@ func (a *App) updatePreviewContent() {
 
 	_, paneContent, err := a.detector.Detect(context.Background(), agentPane, ws.AgentType)
 	if err != nil {
-		a.preview.SetContent(title, fmt.Sprintf("Error capturing pane: %v", err))
+		a.preview.SetContent(title, "Session not running.\n\nPress 'd' to remove or 'n' to create a new workspace.")
 		return
 	}
 	a.preview.SetContent(title, paneContent)

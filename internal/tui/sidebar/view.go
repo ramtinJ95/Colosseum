@@ -68,6 +68,7 @@ func (m Model) ShortHelp() string {
 		t.HelpKey.Render("j/k") + t.HelpDesc.Render(" navigate"),
 		t.HelpKey.Render("enter") + t.HelpDesc.Render(" attach"),
 		t.HelpKey.Render("n") + t.HelpDesc.Render(" new"),
+		t.HelpKey.Render("?") + t.HelpDesc.Render(" help"),
 		t.HelpKey.Render("q") + t.HelpDesc.Render(" quit"),
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, strings.Join(help, "  "))

@@ -83,33 +83,22 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 		case "esc":
 			return m, func() tea.Msg { return NewWorkspaceCancelMsg{} }
 
-		case "tab", "j":
+		case "tab":
 			m.focusIndex = (m.focusIndex + 1) % totalFields
 			m.updateFocus()
 			return m, nil
 
-		case "shift+tab", "k":
+		case "shift+tab":
 			m.focusIndex = (m.focusIndex - 1 + totalFields) % totalFields
 			m.updateFocus()
 			return m, nil
 
-		case "h":
-			if m.focusIndex == selectorAgent {
-				m.agentIndex = (m.agentIndex - 1 + len(m.agents)) % len(m.agents)
-			} else if m.focusIndex == selectorLayout {
-				m.layoutIndex = (m.layoutIndex - 1 + len(m.layouts)) % len(m.layouts)
-			}
-			return m, nil
-
-		case "l":
-			if m.focusIndex == selectorAgent {
-				m.agentIndex = (m.agentIndex + 1) % len(m.agents)
-			} else if m.focusIndex == selectorLayout {
-				m.layoutIndex = (m.layoutIndex + 1) % len(m.layouts)
-			}
-			return m, nil
-
 		case "enter":
+			if m.focusIndex < totalFields-1 {
+				m.focusIndex++
+				m.updateFocus()
+				return m, nil
+			}
 			name := strings.TrimSpace(m.inputs[fieldName].Value())
 			if name == "" {
 				return m, nil
@@ -126,6 +115,24 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 					Branch:    strings.TrimSpace(m.inputs[fieldBranch].Value()),
 					Layout:    m.layouts[m.layoutIndex],
 				}
+			}
+
+		case "h":
+			if m.focusIndex == selectorAgent {
+				m.agentIndex = (m.agentIndex - 1 + len(m.agents)) % len(m.agents)
+				return m, nil
+			} else if m.focusIndex == selectorLayout {
+				m.layoutIndex = (m.layoutIndex - 1 + len(m.layouts)) % len(m.layouts)
+				return m, nil
+			}
+
+		case "l":
+			if m.focusIndex == selectorAgent {
+				m.agentIndex = (m.agentIndex + 1) % len(m.agents)
+				return m, nil
+			} else if m.focusIndex == selectorLayout {
+				m.layoutIndex = (m.layoutIndex + 1) % len(m.layouts)
+				return m, nil
 			}
 		}
 	}
@@ -178,7 +185,7 @@ func (m NewWorkspaceModel) View() string {
 	}
 	rows = append(rows, fmt.Sprintf("%s %s", layoutLabel, renderChoices(layoutStrings(m.layouts), m.layoutIndex, m.focusIndex == selectorLayout)))
 
-	help := t.Dim.Render("  j/k: navigate  h/l: select  enter: create  esc: cancel")
+	help := t.Dim.Render("  tab: navigate  h/l: select  enter: next/create  esc: cancel")
 
 	content := title + "\n\n" + strings.Join(rows, "\n") + "\n\n" + help
 
