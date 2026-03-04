@@ -96,6 +96,7 @@ func newTmuxClient() *tmux.Client {
 func runDashboard(_ *cobra.Command, _ []string) error {
 	store := newStore()
 	client := newTmuxClient()
+	mgr := workspace.NewManager(store, client, sessionPrefix)
 
 	detector := status.NewDetector(client, 50)
 	poller := status.NewPoller(detector, store, 1500*time.Millisecond)
@@ -105,7 +106,7 @@ func runDashboard(_ *cobra.Command, _ []string) error {
 
 	go poller.Run(ctx)
 
-	app := tui.NewApp(store, poller, detector)
+	app := tui.NewApp(store, mgr, poller, detector)
 	p := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	_, err := p.Run()
