@@ -2,6 +2,8 @@ package dialog
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -59,6 +61,7 @@ func NewNewWorkspace() NewWorkspaceModel {
 	pathInput.Placeholder = "project path (default: .)"
 	pathInput.CharLimit = 200
 	pathInput.Width = 30
+	pathInput.ShowSuggestions = true
 
 	branchInput := textinput.New()
 	branchInput.Placeholder = "branch (optional)"
@@ -84,6 +87,13 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 			return m, func() tea.Msg { return NewWorkspaceCancelMsg{} }
 
 		case "tab":
+			if m.focusIndex == int(fieldPath) {
+				current := m.inputs[fieldPath].Value()
+				suggestion := m.inputs[fieldPath].CurrentSuggestion()
+				if suggestion != "" && suggestion != current {
+					break
+				}
+			}
 			m.focusIndex = (m.focusIndex + 1) % totalFields
 			m.updateFocus()
 			return m, nil
@@ -140,10 +150,70 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 	if m.focusIndex < int(fieldCount) {
 		var cmd tea.Cmd
 		m.inputs[m.focusIndex], cmd = m.inputs[m.focusIndex].Update(msg)
+		if m.focusIndex == int(fieldPath) {
+			m.refreshPathSuggestions()
+		}
 		return m, cmd
 	}
 
 	return m, nil
+}
+
+func (m *NewWorkspaceModel) refreshPathSuggestions() {
+	raw := m.inputs[fieldPath].Value()
+	if raw == "" {
+		m.inputs[fieldPath].SetSuggestions(nil)
+		return
+	}
+
+	expanded := raw
+	if strings.HasPrefix(expanded, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			expanded = filepath.Join(home, expanded[2:])
+		}
+	} else if expanded == "~" {
+		if home, err := os.UserHomeDir(); err == nil {
+			expanded = home
+		}
+	}
+
+	var dir, prefix string
+	if strings.HasSuffix(expanded, "/") {
+		dir = expanded
+		prefix = ""
+	} else {
+		dir = filepath.Dir(expanded)
+		prefix = filepath.Base(expanded)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		m.inputs[fieldPath].SetSuggestions(nil)
+		return
+	}
+
+	var suggestions []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if strings.HasPrefix(name, ".") && !strings.HasPrefix(prefix, ".") {
+			continue
+		}
+		if prefix != "" && !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		full := filepath.Join(dir, name) + "/"
+		if strings.HasPrefix(raw, "~/") || raw == "~" {
+			if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(full, home) {
+				full = "~" + full[len(home):]
+			}
+		}
+		suggestions = append(suggestions, full)
+	}
+
+	m.inputs[fieldPath].SetSuggestions(suggestions)
 }
 
 func (m *NewWorkspaceModel) updateFocus() {
