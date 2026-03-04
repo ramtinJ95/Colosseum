@@ -6,7 +6,7 @@ func init() {
 	Register(&AgentDef{
 		Name:        Claude,
 		Binary:      "claude",
-		LaunchFlags: []string{"--resume"},
+		LaunchFlags: []string{},
 		YoloFlags:   []string{"--dangerously-skip-permissions"},
 		WorkingPatterns: []*regexp.Regexp{
 			regexp.MustCompile(`\(esc to interrupt\)`),

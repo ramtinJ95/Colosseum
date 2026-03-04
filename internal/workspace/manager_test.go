@@ -108,8 +108,8 @@ func TestManagerCreate(t *testing.T) {
 	if mock.sendKeysCalls[0].Target != "%0" {
 		t.Errorf("expected send-keys target %%0, got %q", mock.sendKeysCalls[0].Target)
 	}
-	if mock.sendKeysCalls[0].Keys != "claude --resume" {
-		t.Errorf("expected send-keys %q, got %q", "claude --resume", mock.sendKeysCalls[0].Keys)
+	if mock.sendKeysCalls[0].Keys != "claude" {
+		t.Errorf("expected send-keys %q, got %q", "claude", mock.sendKeysCalls[0].Keys)
 	}
 
 	stored, err := store.List()
