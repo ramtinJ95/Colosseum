@@ -6,7 +6,7 @@ Plan-vs-implementation gap analysis. Covers every feature from `project-draft.md
 
 ## What's Built
 
-The project has a functional foundation consisting of 6 internal packages, a CLI entry point, and a Bubble Tea TUI that can create, list, delete, and switch between workspaces backed by tmux sessions.
+The project has a functional foundation consisting of 6 internal packages, a CLI entry point, and a Bubble Tea TUI that can create, list, delete, and switch between workspaces backed by tmux sessions. Agents auto-launch on workspace creation and status is detected in real time.
 
 | Metric | Value |
 |--------|-------|
@@ -21,13 +21,16 @@ The project has a functional foundation consisting of 6 internal packages, a CLI
 
 - Launch a Bubble Tea TUI dashboard inside tmux (`colosseum`)
 - Create workspaces with a named agent, project path, branch, and pane layout via CLI (`colosseum new`) or TUI dialog (`n` key)
-- Delete workspaces with tmux session cleanup via CLI (`colosseum delete`) or TUI dialog (`d` key)
+- Auto-launch the agent binary (e.g., `claude`, `codex`, `gemini`) in the agent pane on workspace creation
+- Delete workspaces with tmux session cleanup via CLI (`colosseum delete`) or TUI dialog (`d` key) — gracefully handles already-killed sessions
 - List workspaces with status icons via CLI (`colosseum list`)
-- Attach to a workspace's tmux session via CLI (`colosseum attach`)
-- Switch to a workspace from the TUI via Enter
+- Attach to a workspace's tmux session via CLI (`colosseum attach`) or TUI (`Enter`)
 - Poll agent pane output in the background and detect status (Working/Waiting/Idle/Error/Stopped) using per-agent regex patterns
 - Display real-time status updates and pane preview content in the TUI
-- Navigate the workspace list (j/k), jump to next workspace needing attention (J), and view a help overlay (?)
+- Switch preview between panes (agent/shell/logs) using `h`/`l` keys with a visual tab bar
+- Navigate the workspace list (`j`/`k`), jump to next workspace needing attention (`J`), and view a help overlay (`?`)
+- Path autocomplete in the new workspace dialog (filesystem directory suggestions via Tab)
+- Duplicate workspace name guard prevents tmux session collisions
 
 ---
 
@@ -37,10 +40,12 @@ The project has a functional foundation consisting of 6 internal packages, a CLI
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Create workspace with agent, path, branch | **Done** | `Manager.Create` builds tmux session, splits panes per layout, persists to JSON. |
-| Delete workspace | **Done** | `Manager.Delete` kills tmux session and removes from store. |
+| Create workspace with agent, path, branch | **Done** | `Manager.Create` builds tmux session, splits panes per layout, launches agent, persists to JSON. |
+| Auto-launch agent on create | **Done** | Agent binary is run via `tmux send-keys` in the agent pane immediately after session setup. Uses `AgentDef.Binary` + `LaunchFlags`. |
+| Delete workspace | **Done** | `Manager.Delete` kills tmux session (ignoring errors if already dead) and removes from store. |
+| Duplicate name guard | **Done** | `Manager.Create` checks for existing workspace with same title before creating. |
 | List workspaces | **Done** | `Store.List()` and CLI `list` command both implemented. |
-| Switch to workspace | **Done** | `Manager.SwitchTo` calls `tmux switch-client`. TUI wires this to Enter key. |
+| Switch to workspace | **Done** | `Manager.SwitchTo` calls `tmux switch-client`. TUI wires this to Enter key. Status bar shows `tmux prefix+L` hint for returning. |
 | Rename workspace | **Not Started** | Key binding `r` is defined in `KeyMap` but no handler exists in `app.go`. No rename logic in `Manager` or `Store`. |
 | Reorder workspaces | **Not Started** | No reordering logic exists anywhere. The store appends new workspaces and there is no move/swap operation. |
 | Workspace persistence (JSON state file) | **Done** | `Store` reads/writes `~/.config/colosseum/workspaces.json` with atomic rename. Thread-safe with `sync.RWMutex`. |
@@ -51,11 +56,11 @@ The project has a functional foundation consisting of 6 internal packages, a CLI
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Pluggable agent registry | **Done** | Global registry in `agent/registry.go` with `Register`, `Get`, `Available`. |
-| Per-agent binary, flags, YOLO flags | **Done** | `AgentDef` struct has `Binary`, `LaunchFlags`, `YoloFlags` for each agent. |
-| 5 agents registered (Claude, Codex, Gemini, OpenCode, Aider) | **Done** | All five registered via `init()` functions. |
+| Per-agent binary and flags | **Done** | `AgentDef` struct has `Binary`, `LaunchFlags`, `YoloFlags` for each agent. All agents launch with just their binary name (no default flags). |
+| 5 agents registered | **Done** | Claude (`claude`), Codex (`codex`), Gemini (`gemini`), OpenCode (`opencode`), Aider (`aider`). All registered via `init()` functions. |
 | Per-agent status detection patterns | **Done** | Each agent def has `WorkingPatterns`, `WaitingPatterns`, `IdlePatterns`, `ErrorPatterns`. |
-| Custom instruction injection (--append-system-prompt) | **Not Started** | No custom instruction flags or logic. The Claude agent def has `--resume` in LaunchFlags but nothing for system prompt injection. |
-| YOLO mode activation | **Partial** | YoloFlags are defined per agent (e.g., `--dangerously-skip-permissions` for Claude) but there is no mechanism to toggle or apply them. `Manager.Create` never launches the agent binary at all -- it only creates the tmux session and splits panes. |
+| YOLO mode activation | **Partial** | YoloFlags are defined per agent (e.g., `--dangerously-skip-permissions` for Claude, `--approval-mode full-auto` for Codex) but there is no UI toggle or mechanism to apply them. The new workspace dialog does not expose a YOLO option. |
+| Custom instruction injection | **Not Started** | No custom instruction flags or logic. |
 
 ### Status Detection
 
@@ -64,11 +69,8 @@ The project has a functional foundation consisting of 6 internal packages, a CLI
 | Background goroutine polling | **Done** | `Poller.Run` ticks on a configurable interval, captures pane content, and sends `Update` structs through a channel. |
 | Per-agent regex pattern matching | **Done** | `DetectFromContent` uses the agent def's patterns in priority order: Working > Waiting > Error > Idle. |
 | Fixture-driven testing | **Done** | 18 fixture files across claude, codex, and gemini. `TestDetectFromContent_Fixtures` iterates all fixtures. |
-| Working detection signal | **Done** | Patterns include `(esc to interrupt)`, braille spinner chars, and activity verbs. |
-| Waiting detection signal | **Done** | Patterns include permission prompts, questions, y/n prompts. |
-| Idle detection signal | **Done** | Patterns match prompt chars (`>`, `$`, etc.) at line start. |
-| Error detection signal | **Done** | Shared patterns for rate limits, panics, auth errors. |
-| Stopped detection signal | **Done** | When `CapturePane` returns an error (session gone), detector returns `StatusStopped`. |
+| Pane targeting | **Done** | Uses real tmux pane IDs (`%N` format) returned from `new-session -P -F #{pane_id}`. Works regardless of tmux `base-index` setting. |
+| Poller error handling | **Done** | On `List()` failure, all tracked workspaces transition to `StatusStopped` with updates sent to the channel. |
 | OpenCode/Aider fixture tests | **Not Started** | No fixture files exist under `testdata/fixtures/opencode/` or `testdata/fixtures/aider/`. Detector test only covers Claude, Codex, and Gemini. |
 
 ### Git Worktree Integration
@@ -77,42 +79,37 @@ The project has a functional foundation consisting of 6 internal packages, a CLI
 |---------|--------|-------|
 | Create git worktree per workspace | **Not Started** | The draft lists an `internal/worktree/` package. No such package exists. The workspace model stores a `Branch` field but nothing calls `git worktree add`. |
 | Configurable worktree path templates | **Not Started** | No template resolution logic. |
-| Broadcast worktrees (one branch per workspace) | **Not Started** | No broadcast-related worktree creation. |
+| Broadcast worktrees | **Not Started** | No broadcast-related worktree creation. |
 | Cleanup worktree on deletion | **Not Started** | `Manager.Delete` kills the tmux session but does not touch git worktrees. |
-| Diff viewer (worktree branch vs base) | **Not Started** | No diff computation code. The draft lists `internal/worktree/diff.go` -- this file does not exist. |
+| Diff viewer (worktree branch vs base) | **Not Started** | No diff computation code. |
 
 ### Notification System
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| In-memory notification store | **Not Started** | The draft lists `internal/notification/` package. No such package exists. |
+| In-memory notification store | **Not Started** | No `internal/notification/` package exists. |
 | Per-workspace unread counts | **Partial** | The `Workspace` struct has an `UnreadCount` field and the sidebar renders unread badges, but nothing increments `UnreadCount`. It is always 0. |
 | Status transition notifications | **Not Started** | The poller sends `Update` events with previous/current status but no code translates these into notification objects. |
 | Desktop notifications (notify-send) | **Not Started** | No `notify-send` integration. |
-| Claude Code hook integration | **Not Started** | The draft lists `internal/hook/` package. No such package exists. |
-| Jump-to-unread (J key) | **Partial** | The `J` key handler in `app.go` jumps to the next workspace with `StatusWaiting` or `StatusError`. However, it navigates by status, not by unread notifications. Close to the draft intent but not notification-aware. |
-| Mark notifications as read (m key) | **Not Started** | Key binding defined in `KeyMap` but no handler in `app.go`. |
-| Notification section in sidebar | **Not Started** | Sidebar only renders the workspace list. No notification section. |
-| Tab to cycle sidebar sections | **Not Started** | Key binding defined but no handler. The sidebar has no section concept. |
+| Claude Code hook integration | **Not Started** | No `internal/hook/` package exists. |
+| Jump-to-unread (J key) | **Partial** | Jumps to the next workspace with `StatusWaiting` or `StatusError`. Navigates by status, not by unread notifications. |
+| Mark notifications as read (m key) | **Not Started** | Key binding defined, no handler. |
 
 ### Broadcast Prompt
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Broadcast prompt dialog | **Not Started** | Key binding `b` is defined in `KeyMap` but no handler in `app.go`. The draft lists `dialog/broadcast.go` -- this file does not exist. |
+| Broadcast prompt dialog | **Not Started** | Key binding `b` is defined but no handler. No `dialog/broadcast.go` exists. |
 | Multi-select workspace picker | **Not Started** | No multi-select component. |
-| Auto-create worktrees on broadcast | **Not Started** | Requires worktree integration which is also not built. |
-| Send prompt via tmux send-keys to multiple panes | **Not Started** | `Client.SendKeys` exists and works, but no broadcast orchestration calls it for multiple workspaces. |
+| Send prompt to multiple panes | **Not Started** | `Client.SendKeys` exists and works, but no broadcast orchestration. |
 | CLI `broadcast` command | **Not Started** | Not registered in `main.go`. |
 
 ### Diff Viewer
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Full-screen diff overlay | **Not Started** | Key binding `D` is defined but no handler in `app.go`. The draft lists `tui/diff/model.go` and `tui/diff/view.go` -- neither exists. |
+| Full-screen diff overlay | **Not Started** | Key binding `D` is defined but no handler. No `tui/diff/` package exists. |
 | Side-by-side diff rendering | **Not Started** | No diff rendering code. |
-| File list panel with navigation | **Not Started** | No diff file list. |
-| Hunk scroll with configurable context | **Not Started** | No hunk navigation. |
 | CLI `diff` command | **Not Started** | Not registered in `main.go`. |
 
 ### TUI Dashboard
@@ -121,10 +118,12 @@ The project has a functional foundation consisting of 6 internal packages, a CLI
 |---------|--------|-------|
 | Bubble Tea app with sidebar + preview | **Done** | `tui/app.go` composes `sidebar.Model` and `preview.Model` side by side using lipgloss. |
 | Sidebar workspace list with status icons | **Done** | Sidebar renders status icons, agent type, branch name, and unread badges per workspace. |
-| Preview panel with captured pane output | **Done** | Preview panel shows the last N lines of the selected workspace's agent pane, refreshed on poll updates and cursor navigation. |
-| New workspace dialog (name, path, agent, branch, layout) | **Done** | Full form with text inputs and selector widgets for agent type and layout. |
+| Preview panel with pane output | **Done** | Preview panel shows the last 50 lines of the selected pane, refreshed on poll updates and cursor navigation. |
+| Pane tab bar in preview | **Done** | Multi-pane layouts show a tab bar (`[agent] shell logs`) with h/l switching. Active tab highlighted. Hidden for single-pane layouts. |
+| New workspace dialog | **Done** | Full form with text inputs (name, path with autocomplete, branch) and selectors (agent, layout). Tab/Enter navigation. |
+| Path autocomplete | **Done** | Path field uses `textinput.ShowSuggestions` with dynamic filesystem directory suggestions. Tab accepts suggestion, `~/` expansion supported. Hidden dirs excluded unless typing a dot. |
 | Delete confirmation dialog | **Done** | Prompts for y/n confirmation before killing session. |
-| Help overlay | **Done** | Lists keybindings. Currently only shows 7 of the planned 15+ keybindings. |
+| Help overlay | **Done** | Lists all keybindings including unimplemented ones, plus `tmux prefix+L` return hint. |
 | Lipgloss styling with theme | **Done** | `theme.Theme` struct with full style definitions for all status types, borders, titles, badges, help text. |
 | Theme support (catppuccin, switching) | **Not Started** | Only `DefaultTheme()` exists. No theme loading from config, no switching. |
 
@@ -145,27 +144,26 @@ The project has a functional foundation consisting of 6 internal packages, a CLI
 | Key | Action | Status | Notes |
 |-----|--------|--------|-------|
 | `j/k` | Navigate workspace list | **Done** | Sidebar model handles j/k for cursor movement. |
-| `Enter` | Attach to selected workspace | **Done** | Calls `switchToWorkspace` which runs `tmux switch-client`. |
-| `n` | New workspace dialog | **Done** | Opens `NewWorkspaceModel` dialog. |
+| `h/l` | Switch preview pane tab | **Done** | Cycles through available panes (agent/shell/logs) with visual tab bar. |
+| `Enter` | Attach to selected workspace | **Done** | Calls `switchToWorkspace` which runs `tmux switch-client`. Shows return hint. |
+| `n` | New workspace dialog | **Done** | Opens `NewWorkspaceModel` dialog with path autocomplete. |
 | `d` | Delete workspace | **Done** | Opens `DeleteModel` confirmation dialog. |
+| `J` | Jump to next needing attention | **Done** | Scans for Waiting/Error status. Resets pane focus to agent. |
+| `?` | Help overlay | **Done** | Opens `HelpModel` dialog with all bindings listed. |
+| `q` | Quit | **Done** | Sends `tea.Quit`. |
 | `b` | Broadcast prompt dialog | **Not Started** | Binding defined, no handler. |
 | `D` | Diff viewer | **Not Started** | Binding defined, no handler. |
 | `r` | Rename workspace | **Not Started** | Binding defined, no handler. |
 | `/` | Filter/search workspaces | **Not Started** | Binding defined, no handler. |
-| `Tab` | Cycle sidebar sections | **Not Started** | Binding defined, no handler. |
 | `m` | Mark notifications as read | **Not Started** | Binding defined, no handler. |
-| `J` | Jump to next needing attention | **Done** | Implemented in `jumpToNextAttention()`. Scans for Waiting/Error status. |
 | `R` | Restart agent | **Not Started** | Binding defined, no handler. |
 | `s` | Stop agent | **Not Started** | Binding defined, no handler. |
-| `?` | Help overlay | **Done** | Opens `HelpModel` dialog. |
-| `q` | Quit | **Done** | Sends `tea.Quit`. |
-| `up/down` arrow keys | Navigate | **Not Started** | Only `j/k` is wired in the sidebar. Arrow keys are not in the sidebar model's Update handler. |
 
 ### Configuration
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| TOML config file | **Not Started** | The draft lists `internal/config/` package with `config.go` and `paths.go`. No such package exists. `go-toml` is listed as a dependency in the draft but is not in `go.mod`. |
+| TOML config file | **Not Started** | No `internal/config/` package exists. `go-toml` is not in `go.mod`. |
 | Config-driven poll interval | **Not Started** | Poll interval is hardcoded to `1500ms` in `main.go`. |
 | Config-driven default agent/layout | **Not Started** | Defaults are hardcoded in CLI flags. |
 | Config-driven worktree settings | **Not Started** | No worktree config. |
@@ -176,59 +174,62 @@ The project has a functional foundation consisting of 6 internal packages, a CLI
 
 ## Known Issues
 
-1. **Unhandled keybindings**: 8 key bindings are defined in `KeyMap` (`Broadcast`, `Diff`, `Rename`, `Filter`, `Tab`, `MarkRead`, `Restart`, `Stop`) but have no corresponding `case` in `app.go`'s `updateNormal`. Pressing these keys does nothing silently.
+1. **Unhandled keybindings**: 7 key bindings are defined in `KeyMap` (`Broadcast`, `Diff`, `Rename`, `Filter`, `MarkRead`, `Restart`, `Stop`) but have no corresponding handler in `app.go`. Pressing these keys does nothing silently.
 
-2. **Arrow key navigation missing**: The sidebar's `Update` method only handles `j` and `k` strings. The draft specifies arrow keys should also work.
+2. **UnreadCount always zero**: The `Workspace.UnreadCount` field exists and the sidebar renders it, but nothing ever writes to it. The poller emits status transitions but no code increments unread counts.
 
-3. **Agent binary never launched**: `Manager.Create` creates a tmux session and splits panes but never launches the agent binary (e.g., `claude`, `codex`). The agent pane starts with an empty shell. The user must manually start the agent.
+3. **YoloFlags never applied**: YoloFlags are defined per agent but there is no UI toggle or code path to apply them when launching an agent.
 
-4. **UnreadCount always zero**: The `Workspace.UnreadCount` field exists and the sidebar renders it, but nothing ever writes to it. The poller emits status transitions but no code increments unread counts.
+4. **StatusUpdateMsg listener re-registration**: `listenForUpdates` reads one update from the channel, then must be re-registered via `tea.Cmd`. This works correctly but status updates during dialog interaction cause a re-render via `tea.Batch`.
 
-5. **Help overlay incomplete**: The help dialog only lists 7 keybindings. The KeyMap defines 16. Users cannot discover the full set of available actions.
+5. **Missing `sergi/go-diff` dependency**: The draft lists `github.com/sergi/go-diff` for diff computation. It is not in `go.mod` and no diff code exists.
 
-6. **No error handling on poller list failure**: `Poller.poll` silently returns on `provider.List()` error with no logging or status update.
+6. **Missing `go-toml` dependency**: The draft lists `github.com/pelletier/go-toml/v2` for config parsing. It is not in `go.mod` and no config code exists.
 
-7. **StatusUpdateMsg listener re-registration**: `listenForUpdates` reads one update from the channel, then must be re-registered via `tea.Cmd`. If the TUI is in a dialog state (new workspace, delete, help), status updates are received via the top-level `Update` switch but then the method re-registers. This works but status updates during dialog interaction cause the dialog to re-render due to the `tea.Batch` returning commands.
+7. **SendKeys ignores errors on agent launch**: `Manager.Create` discards the error from `SendKeys` when launching the agent binary. If the agent binary is not installed, the error is silent.
 
-8. **No duplicate workspace name check**: `Manager.Create` does not check if a workspace with the same title already exists. Two workspaces can share the same session name, causing a tmux collision.
+---
 
-9. **Missing `sergi/go-diff` dependency**: The draft lists `github.com/sergi/go-diff` for diff computation. It is not in `go.mod` and no diff code exists.
+## Resolved Issues (from prior handoff)
 
-10. **Missing `go-toml` dependency**: The draft lists `github.com/pelletier/go-toml/v2` for config parsing. It is not in `go.mod` and no config code exists.
+These issues from the previous handoff have been fixed:
 
-11. **Delete does not handle tmux session already killed**: If the tmux session was already killed externally, `Manager.Delete` will return an error from `KillSession` and leave the workspace in the JSON store.
+1. ~~Agent binary never launched~~ — Manager.Create now launches the agent via SendKeys after session setup.
+2. ~~Pane target hardcoded as session:0.0~~ — CreateSession returns real pane IDs via `-P -F #{pane_id}`.
+3. ~~Dialog navigation hijacks text input~~ — j/k/h/l removed from dialog field navigation; tab/shift+tab/enter used instead.
+4. ~~Delete fails on already-killed sessions~~ — KillSession error is now ignored; workspace always removed from store.
+5. ~~No duplicate workspace name check~~ — Manager.Create checks for existing title before creating.
+6. ~~Help overlay incomplete~~ — All keybindings now listed including unimplemented ones.
+7. ~~No error handling on poller list failure~~ — Poller transitions all tracked workspaces to Stopped on error.
+8. ~~Arrow key navigation~~ — Intentionally vim-only (j/k/h/l) per user preference.
 
 ---
 
 ## Recommended Next Steps
 
-Ordered by impact and dependency chain (earlier items unblock later items):
+Ordered by impact and dependency chain:
 
-1. **Launch agent binary on workspace creation** -- Without this, every workspace requires manual agent startup. Add a `SendKeys` call after session creation to run the agent binary with appropriate flags. This is the single highest-impact gap.
+1. **Add `internal/config/` package with TOML loading** — Many features depend on configuration (poll interval, default agent, worktree paths, notification toggles, theme). Wiring config early avoids hardcoded values spreading further.
 
-2. **Add `internal/config/` package with TOML loading** -- Many features depend on configuration (poll interval, default agent, worktree paths, notification toggles, theme). Wiring config early avoids hardcoded values spreading further.
+2. **Implement `internal/worktree/` package** — Git worktree create/remove/list. This unblocks broadcast and diff features, which are the project's core differentiators per the vision statement.
 
-3. **Implement `internal/worktree/` package** -- Git worktree create/remove/list. This unblocks broadcast and diff features, which are the project's core differentiators per the vision statement.
+3. **Implement `internal/notification/` package** — In-memory store, status-transition-to-notification logic, unread count management. Wire the poller's `Update` events to notification creation.
 
-4. **Implement `internal/notification/` package** -- In-memory store, status-transition-to-notification logic, unread count management. Wire the poller's `Update` events to notification creation.
-
-5. **Wire remaining keybindings** -- Low effort, high discoverability improvement:
-   - `r` (rename): Add `Rename` method to `Manager`, create a rename dialog.
+4. **Wire remaining keybindings** — Low effort, high discoverability:
    - `s` (stop): Send Ctrl+C to agent pane via `tmux send-keys`.
    - `R` (restart): Kill and re-send the agent launch command.
+   - `r` (rename): Add `Rename` method to `Manager`, create a rename dialog.
    - `m` (mark read): Clear unread count for selected workspace.
-   - `Tab` (cycle sections): Add notification section to sidebar.
    - `/` (filter): Add text input filter over workspace list.
-   - Arrow keys: Add `up`/`down` to sidebar model.
 
-6. **Broadcast prompt dialog and execution** -- Create `dialog/broadcast.go` with multi-select workspace picker, wire `b` key. Use `SendKeys` to dispatch the prompt to each selected workspace's agent pane.
+5. **YOLO mode toggle** — Add a checkbox or toggle in the new workspace dialog and/or a keybinding to enable YOLO mode (appends `YoloFlags` to the agent launch command).
 
-7. **Diff viewer** -- Create `tui/diff/` package, add `internal/worktree/diff.go` for git diff computation, wire `D` key. Requires worktree package from step 3.
+6. **Broadcast prompt dialog and execution** — Create `dialog/broadcast.go` with multi-select workspace picker, wire `b` key. Use `SendKeys` to dispatch the prompt to each selected workspace's agent pane.
 
-8. **Desktop notifications** -- Implement `notify-send` integration. Depends on notification store from step 4.
+7. **Diff viewer** — Create `tui/diff/` package, wire `D` key. Requires worktree package from step 2.
 
-9. **OpenCode and Aider fixture tests** -- Add fixture files for the remaining two agents. The detector test infrastructure already supports it; only the fixture data is missing.
+8. **Desktop notifications** — Implement `notify-send` integration. Depends on notification store from step 3.
 
-10. **Duplicate workspace name guard** -- Add a uniqueness check in `Manager.Create` before creating the tmux session.
+9. **OpenCode and Aider fixture tests** — Add fixture files for the remaining two agents. The detector test infrastructure already supports it; only the fixture data is missing.
 
-11. **Theme support and config-driven theming** -- Add alternative themes (catppuccin), load theme name from config.
+10. **Theme support and config-driven theming** — Add alternative themes (catppuccin), load theme name from config.
