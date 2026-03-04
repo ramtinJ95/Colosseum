@@ -3,22 +3,24 @@ package tui
 import "github.com/charmbracelet/bubbles/key"
 
 type KeyMap struct {
-	Up       key.Binding
-	Down     key.Binding
-	Enter    key.Binding
-	New      key.Binding
-	Delete   key.Binding
+	Up        key.Binding
+	Down      key.Binding
+	Enter     key.Binding
+	New       key.Binding
+	Delete    key.Binding
+	PaneLeft  key.Binding
+	PaneRight key.Binding
 	Broadcast key.Binding
-	Diff     key.Binding
-	Rename   key.Binding
-	Filter   key.Binding
-	Tab      key.Binding
-	MarkRead key.Binding
-	JumpNext key.Binding
-	Restart  key.Binding
-	Stop     key.Binding
-	Help     key.Binding
-	Quit     key.Binding
+	Diff      key.Binding
+	Rename    key.Binding
+	Filter    key.Binding
+	Tab       key.Binding
+	MarkRead  key.Binding
+	JumpNext  key.Binding
+	Restart   key.Binding
+	Stop      key.Binding
+	Help      key.Binding
+	Quit      key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -42,6 +44,14 @@ func DefaultKeyMap() KeyMap {
 		Delete: key.NewBinding(
 			key.WithKeys("d"),
 			key.WithHelp("d", "delete"),
+		),
+		PaneLeft: key.NewBinding(
+			key.WithKeys("h"),
+			key.WithHelp("h", "prev pane"),
+		),
+		PaneRight: key.NewBinding(
+			key.WithKeys("l"),
+			key.WithHelp("l", "next pane"),
 		),
 		Broadcast: key.NewBinding(
 			key.WithKeys("b"),

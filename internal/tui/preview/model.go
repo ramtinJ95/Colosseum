@@ -8,6 +8,8 @@ import (
 type Model struct {
 	viewport    viewport.Model
 	title       string
+	tabs        []string
+	activeTab   int
 	Width       int
 	Height      int
 	ready       bool
@@ -30,13 +32,22 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 func (m *Model) SetSize(width, height int) {
 	m.Width = width
 	m.Height = height
+	viewportHeight := height - 2
+	if len(m.tabs) > 1 {
+		viewportHeight--
+	}
 	if !m.ready {
-		m.viewport = viewport.New(width, height-2)
+		m.viewport = viewport.New(width, viewportHeight)
 		m.ready = true
 	} else {
 		m.viewport.Width = width
-		m.viewport.Height = height - 2
+		m.viewport.Height = viewportHeight
 	}
+}
+
+func (m *Model) SetTabs(tabs []string, active int) {
+	m.tabs = tabs
+	m.activeTab = active
 }
 
 func (m *Model) SetContent(title, content string) {

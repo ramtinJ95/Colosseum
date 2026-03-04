@@ -37,6 +37,7 @@ func (m HelpModel) View() string {
 
 	bindings := [][2]string{
 		{"j/k", "Navigate workspace list"},
+		{"h/l", "Switch preview pane tab"},
 		{"enter", "Attach to selected workspace"},
 		{"n", "New workspace"},
 		{"d", "Delete workspace"},

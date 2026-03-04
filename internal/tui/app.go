@@ -34,23 +34,26 @@ type workspaceCreatedMsg struct{ ws *workspace.Workspace }
 
 type workspaceDeletedMsg struct{ id string }
 
+var paneOrder = []string{"agent", "shell", "logs"}
+
 type App struct {
-	state     viewState
-	sidebar   sidebar.Model
-	preview   preview.Model
-	newDialog dialog.NewWorkspaceModel
-	delDialog dialog.DeleteModel
-	helpDialog dialog.HelpModel
-	keys      KeyMap
-	theme     theme.Theme
-	store     *workspace.Store
-	manager   *workspace.Manager
-	poller    *status.Poller
-	detector  *status.Detector
-	statusBar string
-	width     int
-	height    int
-	ready     bool
+	state           viewState
+	sidebar         sidebar.Model
+	preview         preview.Model
+	newDialog       dialog.NewWorkspaceModel
+	delDialog       dialog.DeleteModel
+	helpDialog      dialog.HelpModel
+	keys            KeyMap
+	theme           theme.Theme
+	store           *workspace.Store
+	manager         *workspace.Manager
+	poller          *status.Poller
+	detector        *status.Detector
+	focusedPaneIdx  int
+	statusBar       string
+	width           int
+	height          int
+	ready           bool
 }
 
 func NewApp(store *workspace.Store, manager *workspace.Manager, poller *status.Poller, detector *status.Detector) App {
@@ -96,10 +99,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StatusUpdateMsg:
 		a.sidebar.UpdateWorkspaceStatus(msg.WorkspaceID, msg.Current)
 		if ws := a.sidebar.SelectedWorkspace(); ws != nil && ws.ID == msg.WorkspaceID {
-			a.preview.SetContent(
-				fmt.Sprintf("%s (%s)", ws.Title, ws.AgentType),
-				msg.PaneContent,
-			)
+			panes := a.availablePanes()
+			if a.focusedPaneIdx < len(panes) && panes[a.focusedPaneIdx] == "agent" {
+				a.preview.SetContent(
+					fmt.Sprintf("%s (%s)", ws.Title, ws.AgentType),
+					msg.PaneContent,
+				)
+			}
 		}
 		cmds = append(cmds, a.listenForUpdates())
 		return a, tea.Batch(cmds...)
@@ -164,13 +170,34 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, a.keys.JumpNext):
 			a.jumpToNextAttention()
+			a.focusedPaneIdx = 0
 			a.updatePreviewContent()
+			return a, nil
+
+		case key.Matches(msg, a.keys.PaneLeft):
+			panes := a.availablePanes()
+			if len(panes) > 1 {
+				a.focusedPaneIdx = (a.focusedPaneIdx - 1 + len(panes)) % len(panes)
+				a.updatePreviewContent()
+			}
+			return a, nil
+
+		case key.Matches(msg, a.keys.PaneRight):
+			panes := a.availablePanes()
+			if len(panes) > 1 {
+				a.focusedPaneIdx = (a.focusedPaneIdx + 1) % len(panes)
+				a.updatePreviewContent()
+			}
 			return a, nil
 		}
 
+		prevCursor := a.sidebar.Cursor
 		var cmd tea.Cmd
 		a.sidebar, cmd = a.sidebar.Update(msg)
 		cmds = append(cmds, cmd)
+		if a.sidebar.Cursor != prevCursor {
+			a.focusedPaneIdx = 0
+		}
 		a.updatePreviewContent()
 	}
 
@@ -283,21 +310,45 @@ func (a *App) layoutPanels() {
 	a.preview.SetSize(previewWidth-2, contentHeight-2)
 }
 
+func (a *App) availablePanes() []string {
+	ws := a.sidebar.SelectedWorkspace()
+	if ws == nil {
+		return nil
+	}
+	var panes []string
+	for _, name := range paneOrder {
+		if _, ok := ws.PaneTargets[name]; ok {
+			panes = append(panes, name)
+		}
+	}
+	return panes
+}
+
 func (a *App) updatePreviewContent() {
 	ws := a.sidebar.SelectedWorkspace()
 	if ws == nil {
+		a.preview.SetTabs(nil, 0)
 		a.preview.SetContent("", "")
 		return
 	}
 
+	panes := a.availablePanes()
+	if a.focusedPaneIdx >= len(panes) {
+		a.focusedPaneIdx = 0
+	}
+	a.preview.SetTabs(panes, a.focusedPaneIdx)
+
 	title := fmt.Sprintf("%s (%s)", ws.Title, ws.AgentType)
-	agentPane, ok := ws.PaneTargets["agent"]
-	if !ok {
-		a.preview.SetContent(title, "No agent pane configured")
+
+	if len(panes) == 0 {
+		a.preview.SetContent(title, "No panes configured")
 		return
 	}
 
-	_, paneContent, err := a.detector.Detect(context.Background(), agentPane, ws.AgentType)
+	paneName := panes[a.focusedPaneIdx]
+	paneTarget := ws.PaneTargets[paneName]
+
+	_, paneContent, err := a.detector.Detect(context.Background(), paneTarget, ws.AgentType)
 	if err != nil {
 		a.preview.SetContent(title, "Session not running.\n\nPress 'd' to remove or 'n' to create a new workspace.")
 		return
