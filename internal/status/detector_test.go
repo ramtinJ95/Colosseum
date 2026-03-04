@@ -83,8 +83,9 @@ func TestDetectFromContent_PriorityOrder(t *testing.T) {
 func TestDetectFromContent_IdleOverridesOlderContent(t *testing.T) {
 	def, _ := agent.Get(agent.Claude)
 
-	// Simulates Claude idle at prompt after a conversation containing
-	// words like "running" that previously caused false Working detection.
+	// Simulates Claude idle at prompt with typed text, after a conversation
+	// containing words like "running". Status bar lines are filtered out,
+	// leaving "❯ nice" as the last non-empty line.
 	content := "● It's running Arch Linux with kernel 6.18.13-arch1-1.\n\n❯ nice\n[Opus 4.6] Tokens: 32,171/200,000 | Remaining: 167,829 | Used: 16.0%\n-- INSERT -- >> bypass permissions on (shift+tab to cycle)"
 	got := DetectFromContent(content, def)
 	if got != agent.StatusIdle {
@@ -100,5 +101,20 @@ func TestDetectFromContent_IdleBottomPriority(t *testing.T) {
 	got := DetectFromContent(content, def)
 	if got != agent.StatusIdle {
 		t.Errorf("idle prompt at bottom should win over working in older lines, got %s", got)
+	}
+}
+
+func TestDetectFromContent_StatusBarFiltered(t *testing.T) {
+	def, _ := agent.Get(agent.Claude)
+
+	// "bypass permissions" in the status bar was triggering false Waiting
+	// via the (?i)permission pattern. Status bar should be filtered out.
+	content := "· Fluttering.. (thought for 2s)\n└ Tip: Double-tap esc to rewind\n\n❯\n[Opus 4.6] Tokens: 32,863/200,000 | Remaining: 167,137 | Used: 16.0%\n-- INSERT -- >> bypass permissions on (shift+tab to cycle)"
+	got := DetectFromContent(content, def)
+	if got == agent.StatusWaiting {
+		t.Errorf("status bar 'bypass permissions' should not trigger Waiting, got %s", got)
+	}
+	if got != agent.StatusIdle {
+		t.Errorf("expected Idle (prompt visible), got %s", got)
 	}
 }

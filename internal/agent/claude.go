@@ -8,6 +8,10 @@ func init() {
 		Binary:      "claude",
 		LaunchFlags: []string{},
 		YoloFlags:   []string{"--dangerously-skip-permissions"},
+		IgnorePatterns: []*regexp.Regexp{
+			regexp.MustCompile(`Tokens:.*Remaining:`),
+			regexp.MustCompile(`^--\s+(INSERT|NORMAL)\s+--`),
+		},
 		WorkingPatterns: []*regexp.Regexp{
 			regexp.MustCompile(`\(esc to interrupt\)`),
 			BrailleSpinner,
@@ -21,8 +25,7 @@ func init() {
 		IdlePatterns: []*regexp.Regexp{
 			regexp.MustCompile(`^>\s*$`),
 			regexp.MustCompile(`^\$\s*$`),
-			regexp.MustCompile(`^❯\s*$`),
-			regexp.MustCompile(`-- INSERT --`),
+			regexp.MustCompile(`^❯`),
 		},
 		ErrorPatterns: []*regexp.Regexp{
 			RateLimitPattern,

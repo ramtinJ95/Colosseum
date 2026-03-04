@@ -45,14 +45,20 @@ func (d *Detector) Detect(ctx context.Context, paneTarget string, agentType agen
 func DetectFromContent(content string, def *agent.AgentDef) agent.Status {
 	lines := strings.Split(content, "\n")
 
-	lastNonEmpty := lastNonEmptyLines(lines, 10)
+	// Filter out lines matching agent-specific ignore patterns (e.g. status bars)
+	// before running detection, so UI chrome doesn't trigger false matches.
+	filtered := filterIgnored(lines, def.IgnorePatterns)
 
-	// Check the most recent lines for idle indicators first.
-	// A prompt at the bottom of the output means the agent is idle,
-	// regardless of keywords in earlier conversation output.
-	bottom := lastNonEmpty
-	if len(bottom) > 3 {
-		bottom = bottom[len(bottom)-3:]
+	lastNonEmpty := lastNonEmptyLines(filtered, 10)
+
+	// Check only the very last non-empty line for idle indicators.
+	// A prompt at the bottom means the agent is idle, regardless of
+	// keywords in earlier output. Using only the last line avoids
+	// false idle detection from selection arrows (❯ Yes, allow once)
+	// which appear above other menu items in waiting prompts.
+	var bottom []string
+	if len(lastNonEmpty) > 0 {
+		bottom = lastNonEmpty[len(lastNonEmpty)-1:]
 	}
 	if matchesAnyLine(bottom, def.IdlePatterns) {
 		return agent.StatusIdle
@@ -105,4 +111,24 @@ func matchesAnyLine(lines []string, patterns []*regexp.Regexp) bool {
 		}
 	}
 	return false
+}
+
+func filterIgnored(lines []string, patterns []*regexp.Regexp) []string {
+	if len(patterns) == 0 {
+		return lines
+	}
+	result := make([]string, 0, len(lines))
+	for _, line := range lines {
+		ignored := false
+		for _, p := range patterns {
+			if p.MatchString(line) {
+				ignored = true
+				break
+			}
+		}
+		if !ignored {
+			result = append(result, line)
+		}
+	}
+	return result
 }

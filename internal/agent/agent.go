@@ -45,6 +45,7 @@ type AgentDef struct {
 	Binary          string
 	LaunchFlags     []string
 	YoloFlags       []string
+	IgnorePatterns  []*regexp.Regexp
 	WorkingPatterns []*regexp.Regexp
 	WaitingPatterns []*regexp.Regexp
 	IdlePatterns    []*regexp.Regexp
