@@ -83,17 +83,17 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 		case "esc":
 			return m, func() tea.Msg { return NewWorkspaceCancelMsg{} }
 
-		case "tab", "down":
+		case "tab", "j":
 			m.focusIndex = (m.focusIndex + 1) % totalFields
 			m.updateFocus()
 			return m, nil
 
-		case "shift+tab", "up":
+		case "shift+tab", "k":
 			m.focusIndex = (m.focusIndex - 1 + totalFields) % totalFields
 			m.updateFocus()
 			return m, nil
 
-		case "left":
+		case "h":
 			if m.focusIndex == selectorAgent {
 				m.agentIndex = (m.agentIndex - 1 + len(m.agents)) % len(m.agents)
 			} else if m.focusIndex == selectorLayout {
@@ -101,7 +101,7 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 			}
 			return m, nil
 
-		case "right":
+		case "l":
 			if m.focusIndex == selectorAgent {
 				m.agentIndex = (m.agentIndex + 1) % len(m.agents)
 			} else if m.focusIndex == selectorLayout {
@@ -178,7 +178,7 @@ func (m NewWorkspaceModel) View() string {
 	}
 	rows = append(rows, fmt.Sprintf("%s %s", layoutLabel, renderChoices(layoutStrings(m.layouts), m.layoutIndex, m.focusIndex == selectorLayout)))
 
-	help := t.Dim.Render("  tab: navigate  left/right: select  enter: create  esc: cancel")
+	help := t.Dim.Render("  j/k: navigate  h/l: select  enter: create  esc: cancel")
 
 	content := title + "\n\n" + strings.Join(rows, "\n") + "\n\n" + help
 

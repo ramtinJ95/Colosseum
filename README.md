@@ -107,7 +107,7 @@ Kills the tmux session and removes the workspace from state.
 
 | Key | Action |
 |-----|--------|
-| `j` / `k` or `↑` / `↓` | Navigate workspace list |
+| `j` / `k` | Navigate workspace list |
 | `Enter` | Attach to selected workspace |
 | `n` | New workspace |
 | `d` | Delete workspace |

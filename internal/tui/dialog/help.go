@@ -36,7 +36,7 @@ func (m HelpModel) View() string {
 	title := t.AppTitle.Render(" Keybindings")
 
 	bindings := [][2]string{
-		{"↑/k ↓/j", "Navigate workspace list"},
+		{"j/k", "Navigate workspace list"},
 		{"enter", "Attach to selected workspace"},
 		{"n", "New workspace"},
 		{"d", "Delete workspace"},

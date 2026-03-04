@@ -31,11 +31,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, nil
 		}
 		switch msg.String() {
-		case "up", "k":
+		case "k":
 			if m.Cursor > 0 {
 				m.Cursor--
 			}
-		case "down", "j":
+		case "j":
 			if m.Cursor < len(m.Workspaces)-1 {
 				m.Cursor++
 			}
