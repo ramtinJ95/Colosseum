@@ -79,3 +79,26 @@ func TestDetectFromContent_PriorityOrder(t *testing.T) {
 		t.Errorf("working should take priority over error, got %s", got)
 	}
 }
+
+func TestDetectFromContent_IdleOverridesOlderContent(t *testing.T) {
+	def, _ := agent.Get(agent.Claude)
+
+	// Simulates Claude idle at prompt after a conversation containing
+	// words like "running" that previously caused false Working detection.
+	content := "● It's running Arch Linux with kernel 6.18.13-arch1-1.\n\n❯ nice\n[Opus 4.6] Tokens: 32,171/200,000 | Remaining: 167,829 | Used: 16.0%\n-- INSERT -- >> bypass permissions on (shift+tab to cycle)"
+	got := DetectFromContent(content, def)
+	if got != agent.StatusIdle {
+		t.Errorf("idle prompt should override older conversation content, got %s", got)
+	}
+}
+
+func TestDetectFromContent_IdleBottomPriority(t *testing.T) {
+	def, _ := agent.Get(agent.Claude)
+
+	// Working keywords in old output, but prompt at the bottom.
+	content := "⠹ Reading file (esc to interrupt)\n\nDone! Here are the results.\n\n>"
+	got := DetectFromContent(content, def)
+	if got != agent.StatusIdle {
+		t.Errorf("idle prompt at bottom should win over working in older lines, got %s", got)
+	}
+}

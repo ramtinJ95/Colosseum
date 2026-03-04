@@ -47,6 +47,17 @@ func DetectFromContent(content string, def *agent.AgentDef) agent.Status {
 
 	lastNonEmpty := lastNonEmptyLines(lines, 10)
 
+	// Check the most recent lines for idle indicators first.
+	// A prompt at the bottom of the output means the agent is idle,
+	// regardless of keywords in earlier conversation output.
+	bottom := lastNonEmpty
+	if len(bottom) > 3 {
+		bottom = bottom[len(bottom)-3:]
+	}
+	if matchesAnyLine(bottom, def.IdlePatterns) {
+		return agent.StatusIdle
+	}
+
 	if matchesAny(lastNonEmpty, def.WorkingPatterns) {
 		return agent.StatusWorking
 	}
@@ -55,9 +66,6 @@ func DetectFromContent(content string, def *agent.AgentDef) agent.Status {
 	}
 	if matchesAny(lastNonEmpty, def.ErrorPatterns) {
 		return agent.StatusError
-	}
-	if matchesAnyLine(lastNonEmpty, def.IdlePatterns) {
-		return agent.StatusIdle
 	}
 
 	return agent.StatusUnknown

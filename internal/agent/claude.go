@@ -11,7 +11,6 @@ func init() {
 		WorkingPatterns: []*regexp.Regexp{
 			regexp.MustCompile(`\(esc to interrupt\)`),
 			BrailleSpinner,
-			regexp.MustCompile(`(?i)(reading|writing|editing|creating|running|searching|analyzing)`),
 		},
 		WaitingPatterns: []*regexp.Regexp{
 			regexp.MustCompile(`(?i)(yes,?\s*allow|allow\s*(once|always))`),
@@ -23,6 +22,7 @@ func init() {
 			regexp.MustCompile(`^>\s*$`),
 			regexp.MustCompile(`^\$\s*$`),
 			regexp.MustCompile(`^❯\s*$`),
+			regexp.MustCompile(`-- INSERT --`),
 		},
 		ErrorPatterns: []*regexp.Regexp{
 			RateLimitPattern,
