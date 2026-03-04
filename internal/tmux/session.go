@@ -20,12 +20,13 @@ func NewClient(cmdr Commander) *Client {
 	}
 }
 
-func (c *Client) CreateSession(ctx context.Context, name string, startDir string) error {
-	_, err := c.Commander.Run(ctx, "new-session", "-d", "-s", c.fullName(name), "-c", startDir)
+func (c *Client) CreateSession(ctx context.Context, name string, startDir string) (string, error) {
+	format := BuildFormat(FormatPaneID)
+	output, err := c.Commander.Run(ctx, "new-session", "-d", "-s", c.fullName(name), "-c", startDir, "-P", "-F", format)
 	if err != nil {
-		return fmt.Errorf("create session %q: %w", name, err)
+		return "", fmt.Errorf("create session %q: %w", name, err)
 	}
-	return nil
+	return strings.TrimSpace(output), nil
 }
 
 func (c *Client) KillSession(ctx context.Context, name string) error {

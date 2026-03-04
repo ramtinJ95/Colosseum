@@ -6,12 +6,15 @@ import (
 )
 
 func TestCreateSession(t *testing.T) {
-	mock := NewMockCommander(MockResponse{Output: "", Err: nil})
+	mock := NewMockCommander(MockResponse{Output: "%0\n", Err: nil})
 	client := NewClient(mock)
 
-	err := client.CreateSession(context.Background(), "myproject", "/home/user/projects/myproject")
+	paneID, err := client.CreateSession(context.Background(), "myproject", "/home/user/projects/myproject")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if paneID != "%0" {
+		t.Errorf("expected pane ID %%0, got %q", paneID)
 	}
 
 	if len(mock.Calls) != 1 {
@@ -19,7 +22,7 @@ func TestCreateSession(t *testing.T) {
 	}
 
 	args := mock.Calls[0].Args
-	expected := []string{"new-session", "-d", "-s", "colo-myproject", "-c", "/home/user/projects/myproject"}
+	expected := []string{"new-session", "-d", "-s", "colo-myproject", "-c", "/home/user/projects/myproject", "-P", "-F", "#{pane_id}"}
 	assertArgs(t, args, expected)
 }
 

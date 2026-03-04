@@ -10,10 +10,11 @@ import (
 )
 
 type SessionCreator interface {
-	CreateSession(ctx context.Context, name string, startDir string) error
+	CreateSession(ctx context.Context, name string, startDir string) (string, error)
 	KillSession(ctx context.Context, name string) error
 	SplitWindow(ctx context.Context, session string, horizontal bool, startDir string) (string, error)
 	SwitchClient(ctx context.Context, name string) error
+	SendKeys(ctx context.Context, target string, keys string) error
 }
 
 type Manager struct {
@@ -44,12 +45,13 @@ func (m *Manager) Create(ctx context.Context, title string, agentType agent.Agen
 	id := uuid.New().String()
 	sessionName := m.sessionPrefix + title
 
-	if err := m.sessions.CreateSession(ctx, title, projectPath); err != nil {
+	agentPaneID, err := m.sessions.CreateSession(ctx, title, projectPath)
+	if err != nil {
 		return nil, fmt.Errorf("creating session for %q: %w", title, err)
 	}
 
 	paneTargets := map[string]string{
-		"agent": sessionName + ":0.0",
+		"agent": agentPaneID,
 	}
 
 	if layout.PaneCount() >= 2 {
@@ -66,6 +68,15 @@ func (m *Manager) Create(ctx context.Context, title string, agentType agent.Agen
 			return nil, fmt.Errorf("splitting window for logs pane: %w", err)
 		}
 		paneTargets["logs"] = paneID
+	}
+
+	def, _ := agent.Get(agentType)
+	if def != nil {
+		launchCmd := def.Binary
+		for _, flag := range def.LaunchFlags {
+			launchCmd += " " + flag
+		}
+		_ = m.sessions.SendKeys(ctx, agentPaneID, launchCmd)
 	}
 
 	ws := Workspace{

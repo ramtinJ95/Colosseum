@@ -9,11 +9,12 @@ import (
 )
 
 type mockSessionCreator struct {
-	createCalls []mockCreateCall
-	killCalls   []string
-	splitCalls  []mockSplitCall
-	switchCalls []string
-	splitCount  int
+	createCalls  []mockCreateCall
+	killCalls    []string
+	splitCalls   []mockSplitCall
+	switchCalls  []string
+	sendKeysCalls []mockSendKeysCall
+	splitCount   int
 }
 
 type mockCreateCall struct {
@@ -27,9 +28,14 @@ type mockSplitCall struct {
 	StartDir   string
 }
 
-func (m *mockSessionCreator) CreateSession(_ context.Context, name string, startDir string) error {
+type mockSendKeysCall struct {
+	Target string
+	Keys   string
+}
+
+func (m *mockSessionCreator) CreateSession(_ context.Context, name string, startDir string) (string, error) {
 	m.createCalls = append(m.createCalls, mockCreateCall{Name: name, StartDir: startDir})
-	return nil
+	return "%0", nil
 }
 
 func (m *mockSessionCreator) KillSession(_ context.Context, name string) error {
@@ -49,6 +55,11 @@ func (m *mockSessionCreator) SplitWindow(_ context.Context, session string, hori
 
 func (m *mockSessionCreator) SwitchClient(_ context.Context, name string) error {
 	m.switchCalls = append(m.switchCalls, name)
+	return nil
+}
+
+func (m *mockSessionCreator) SendKeys(_ context.Context, target string, keys string) error {
+	m.sendKeysCalls = append(m.sendKeysCalls, mockSendKeysCall{Target: target, Keys: keys})
 	return nil
 }
 
@@ -85,6 +96,20 @@ func TestManagerCreate(t *testing.T) {
 
 	if len(mock.splitCalls) != 1 {
 		t.Fatalf("expected 1 split call for agent-shell layout, got %d", len(mock.splitCalls))
+	}
+
+	if ws.PaneTargets["agent"] != "%0" {
+		t.Errorf("expected agent pane target %%0, got %q", ws.PaneTargets["agent"])
+	}
+
+	if len(mock.sendKeysCalls) != 1 {
+		t.Fatalf("expected 1 send-keys call to launch agent, got %d", len(mock.sendKeysCalls))
+	}
+	if mock.sendKeysCalls[0].Target != "%0" {
+		t.Errorf("expected send-keys target %%0, got %q", mock.sendKeysCalls[0].Target)
+	}
+	if mock.sendKeysCalls[0].Keys != "claude --resume" {
+		t.Errorf("expected send-keys %q, got %q", "claude --resume", mock.sendKeysCalls[0].Keys)
 	}
 
 	stored, err := store.List()
