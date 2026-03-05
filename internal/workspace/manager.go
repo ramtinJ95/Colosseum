@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ramtinj/colosseum/internal/agent"
+	"github.com/ramtinj/colosseum/internal/tmux"
 )
 
 type SessionCreator interface {
@@ -32,6 +33,13 @@ func NewManager(store *Store, sessions SessionCreator, prefix string) *Manager {
 }
 
 func (m *Manager) Create(ctx context.Context, title string, agentType agent.AgentType, projectPath string, branch string, layout LayoutType) (*Workspace, error) {
+	if !agent.IsSupported(agentType) {
+		return nil, fmt.Errorf("unsupported agent type %q", agentType)
+	}
+	if !IsValidLayout(layout) {
+		return nil, fmt.Errorf("invalid layout %q", layout)
+	}
+
 	existing, err := m.store.List()
 	if err != nil {
 		return nil, fmt.Errorf("checking existing workspaces: %w", err)
@@ -49,6 +57,12 @@ func (m *Manager) Create(ctx context.Context, title string, agentType agent.Agen
 	if err != nil {
 		return nil, fmt.Errorf("creating session for %q: %w", title, err)
 	}
+	rollback := true
+	defer func() {
+		if rollback {
+			_ = m.sessions.KillSession(ctx, title)
+		}
+	}()
 
 	paneTargets := map[string]string{
 		"agent": agentPaneID,
@@ -70,13 +84,16 @@ func (m *Manager) Create(ctx context.Context, title string, agentType agent.Agen
 		paneTargets["logs"] = paneID
 	}
 
-	def, _ := agent.Get(agentType)
-	if def != nil {
-		launchCmd := def.Binary
-		for _, flag := range def.LaunchFlags {
-			launchCmd += " " + flag
-		}
-		_ = m.sessions.SendKeys(ctx, agentPaneID, launchCmd)
+	def, ok := agent.Get(agentType)
+	if !ok {
+		return nil, fmt.Errorf("agent type %q is not registered", agentType)
+	}
+	launchCmd := def.Binary
+	for _, flag := range def.LaunchFlags {
+		launchCmd += " " + flag
+	}
+	if err := m.sessions.SendKeys(ctx, agentPaneID, launchCmd); err != nil {
+		return nil, fmt.Errorf("launching agent %q: %w", agentType, err)
 	}
 
 	ws := Workspace{
@@ -96,6 +113,7 @@ func (m *Manager) Create(ctx context.Context, title string, agentType agent.Agen
 		return nil, fmt.Errorf("saving workspace: %w", err)
 	}
 
+	rollback = false
 	return &ws, nil
 }
 
@@ -108,7 +126,9 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("workspace %q not found", id)
 	}
 
-	_ = m.sessions.KillSession(ctx, ws.Title)
+	if err := m.sessions.KillSession(ctx, ws.Title); err != nil && !tmux.IsSessionNotFound(err) {
+		return fmt.Errorf("killing session for %q: %w", ws.Title, err)
+	}
 
 	if err := m.store.Remove(id); err != nil {
 		return fmt.Errorf("removing workspace %q: %w", id, err)

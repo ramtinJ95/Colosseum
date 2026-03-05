@@ -44,9 +44,11 @@ func (c *Client) CapturePane(ctx context.Context, target string, lines int) (str
 }
 
 func (c *Client) SendKeys(ctx context.Context, target string, keys string) error {
-	_, err := c.Commander.Run(ctx, "send-keys", "-t", target, keys, "Enter")
-	if err != nil {
+	if _, err := c.Commander.Run(ctx, "send-keys", "-t", target, "-l", keys); err != nil {
 		return fmt.Errorf("send keys to %q: %w", target, err)
+	}
+	if _, err := c.Commander.Run(ctx, "send-keys", "-t", target, "Enter"); err != nil {
+		return fmt.Errorf("send enter to %q: %w", target, err)
 	}
 	return nil
 }

@@ -14,12 +14,12 @@ type WorkspaceProvider interface {
 }
 
 type Poller struct {
-	detector  *Detector
-	provider  WorkspaceProvider
-	interval  time.Duration
-	updates   chan Update
-	statuses  map[string]agent.Status
-	mu        sync.RWMutex
+	detector *Detector
+	provider WorkspaceProvider
+	interval time.Duration
+	updates  chan Update
+	statuses map[string]agent.Status
+	mu       sync.RWMutex
 }
 
 func NewPoller(detector *Detector, provider WorkspaceProvider, interval time.Duration) *Poller {
@@ -75,6 +75,18 @@ func (p *Poller) poll(ctx context.Context) {
 		p.mu.Unlock()
 		return
 	}
+
+	activeIDs := make(map[string]struct{}, len(workspaces))
+	for _, ws := range workspaces {
+		activeIDs[ws.ID] = struct{}{}
+	}
+	p.mu.Lock()
+	for id := range p.statuses {
+		if _, ok := activeIDs[id]; !ok {
+			delete(p.statuses, id)
+		}
+	}
+	p.mu.Unlock()
 
 	for _, ws := range workspaces {
 		agentPane, ok := ws.PaneTargets["agent"]

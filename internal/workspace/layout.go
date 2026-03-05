@@ -3,13 +3,26 @@ package workspace
 type LayoutType string
 
 const (
-	LayoutAgent         LayoutType = "agent"
-	LayoutAgentShell    LayoutType = "agent-shell"
+	LayoutAgent          LayoutType = "agent"
+	LayoutAgentShell     LayoutType = "agent-shell"
 	LayoutAgentShellLogs LayoutType = "agent-shell-logs"
 )
 
+var validLayouts = []LayoutType{LayoutAgent, LayoutAgentShell, LayoutAgentShellLogs}
+
 func ValidLayouts() []LayoutType {
-	return []LayoutType{LayoutAgent, LayoutAgentShell, LayoutAgentShellLogs}
+	layouts := make([]LayoutType, len(validLayouts))
+	copy(layouts, validLayouts)
+	return layouts
+}
+
+func IsValidLayout(layout LayoutType) bool {
+	for _, candidate := range validLayouts {
+		if layout == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 func (l LayoutType) PaneCount() int {

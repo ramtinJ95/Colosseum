@@ -61,7 +61,10 @@ func TestCapturePane(t *testing.T) {
 }
 
 func TestSendKeys(t *testing.T) {
-	mock := NewMockCommander(MockResponse{Output: "", Err: nil})
+	mock := NewMockCommander(
+		MockResponse{Output: "", Err: nil},
+		MockResponse{Output: "", Err: nil},
+	)
 	client := NewClient(mock)
 
 	err := client.SendKeys(context.Background(), "%3", "ls -la")
@@ -69,8 +72,11 @@ func TestSendKeys(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	expected := []string{"send-keys", "-t", "%3", "ls -la", "Enter"}
-	assertArgs(t, mock.Calls[0].Args, expected)
+	if len(mock.Calls) != 2 {
+		t.Fatalf("expected 2 tmux calls, got %d", len(mock.Calls))
+	}
+	assertArgs(t, mock.Calls[0].Args, []string{"send-keys", "-t", "%3", "-l", "ls -la"})
+	assertArgs(t, mock.Calls[1].Args, []string{"send-keys", "-t", "%3", "Enter"})
 }
 
 func TestSendLiteralKeys(t *testing.T) {

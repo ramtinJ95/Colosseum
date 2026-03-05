@@ -68,7 +68,7 @@ var (
 
 func init() {
 	newCmd.Flags().StringVarP(&flagPath, "path", "p", ".", "project directory path")
-	newCmd.Flags().StringVarP(&flagAgent, "agent", "a", "claude", "agent type (claude, codex, gemini, opencode, aider)")
+	newCmd.Flags().StringVarP(&flagAgent, "agent", "a", "claude", "agent type (claude, codex)")
 	newCmd.Flags().StringVarP(&flagBranch, "branch", "b", "", "git branch name")
 	newCmd.Flags().StringVarP(&flagLayout, "layout", "l", "agent-shell", "pane layout (agent, agent-shell, agent-shell-logs)")
 
@@ -117,8 +117,17 @@ func runNew(_ *cobra.Command, args []string) error {
 	name := args[0]
 	agentType := agent.AgentType(flagAgent)
 
+	if !agent.IsSupported(agentType) {
+		return fmt.Errorf("unsupported agent type: %s (supported: %v)", flagAgent, agent.Supported())
+	}
+
 	if _, ok := agent.Get(agentType); !ok {
-		return fmt.Errorf("unknown agent type: %s (available: %v)", flagAgent, agent.Available())
+		return fmt.Errorf("agent type %q is not registered", flagAgent)
+	}
+
+	layout := workspace.LayoutType(flagLayout)
+	if !workspace.IsValidLayout(layout) {
+		return fmt.Errorf("invalid layout %q (valid: %v)", flagLayout, workspace.ValidLayouts())
 	}
 
 	absPath, err := filepath.Abs(flagPath)
@@ -130,7 +139,6 @@ func runNew(_ *cobra.Command, args []string) error {
 	client := newTmuxClient()
 	mgr := workspace.NewManager(store, client, sessionPrefix)
 
-	layout := workspace.LayoutType(flagLayout)
 	ws, err := mgr.Create(context.Background(), name, agentType, absPath, flagBranch, layout)
 	if err != nil {
 		return fmt.Errorf("create workspace: %w", err)
@@ -145,6 +153,15 @@ func runList(_ *cobra.Command, _ []string) error {
 	workspaces, err := store.List()
 	if err != nil {
 		return fmt.Errorf("list workspaces: %w", err)
+	}
+
+	client := newTmuxClient()
+	detector := status.NewDetector(client, 50)
+	workspaces, changed := status.RefreshWorkspaceStatuses(context.Background(), detector, workspaces)
+	if changed {
+		if err := store.Save(workspaces); err != nil {
+			return fmt.Errorf("saving refreshed statuses: %w", err)
+		}
 	}
 
 	if len(workspaces) == 0 {

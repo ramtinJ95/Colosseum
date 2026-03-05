@@ -156,3 +156,26 @@ func TestPollerCurrentStatus(t *testing.T) {
 		t.Errorf("CurrentStatus: got %s, want Working", got)
 	}
 }
+
+func TestRefreshWorkspaceStatuses(t *testing.T) {
+	detector := NewDetector(&mockCapturer{content: ">\n"}, 50)
+
+	workspaces := []workspace.Workspace{
+		{
+			ID:        "ws-1",
+			AgentType: agent.Claude,
+			Status:    agent.StatusWorking,
+			PaneTargets: map[string]string{
+				"agent": "%0",
+			},
+		},
+	}
+
+	refreshed, changed := RefreshWorkspaceStatuses(context.Background(), detector, workspaces)
+	if !changed {
+		t.Fatal("expected statuses to change")
+	}
+	if refreshed[0].Status != agent.StatusIdle {
+		t.Fatalf("status = %s, want Idle", refreshed[0].Status)
+	}
+}

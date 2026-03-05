@@ -21,7 +21,7 @@ A terminal-agnostic TUI for managing parallel AI coding agents across git worktr
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-Colosseum manages multiple AI coding agents (Claude Code, Codex, Gemini CLI, OpenCode, Aider) running in parallel. Each agent gets its own tmux session with a configurable pane layout, and a central TUI dashboard provides real-time status detection and workspace switching.
+Colosseum currently supports Claude Code and Codex workspaces. Each agent gets its own tmux session with a configurable pane layout, and a central TUI dashboard provides real-time status detection and workspace switching.
 
 ## Prerequisites
 
@@ -69,7 +69,7 @@ colosseum new my-feature --path ~/projects/myapp --agent claude --branch feat/au
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
 | `--path` | `-p` | `.` | Project directory |
-| `--agent` | `-a` | `claude` | Agent type: `claude`, `codex`, `gemini`, `opencode`, `aider` |
+| `--agent` | `-a` | `claude` | Agent type: `claude`, `codex` |
 | `--branch` | `-b` | | Git branch name |
 | `--layout` | `-l` | `agent-shell` | Pane layout: `agent`, `agent-shell`, `agent-shell-logs` |
 
@@ -84,7 +84,7 @@ colosseum list
 ```
   ● auth-feature [main] (claude · Working)
   ◉ api-v2 [feat/api] (codex · Waiting)
-  ○ fix-tests [bugfix] (gemini · Idle)
+  ○ fix-tests [bugfix] (codex · Idle)
 ```
 
 ### Attach to a workspace
@@ -143,9 +143,6 @@ Detection priority: Working > Waiting > Error > Idle.
 |-------|--------|-------------------|
 | Claude Code | `claude` | `--dangerously-skip-permissions` |
 | Codex CLI | `codex` | `--approval-mode full-auto` |
-| Gemini CLI | `gemini` | `-y` |
-| OpenCode | `opencode` | — |
-| Aider | `aider` | `--yes-always` |
 
 ## Pane Layouts
 
