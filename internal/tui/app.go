@@ -37,23 +37,23 @@ type workspaceDeletedMsg struct{ id string }
 var paneOrder = []string{"agent", "shell", "logs"}
 
 type App struct {
-	state           viewState
-	sidebar         sidebar.Model
-	preview         preview.Model
-	newDialog       dialog.NewWorkspaceModel
-	delDialog       dialog.DeleteModel
-	helpDialog      dialog.HelpModel
-	keys            KeyMap
-	theme           theme.Theme
-	store           *workspace.Store
-	manager         *workspace.Manager
-	poller          *status.Poller
-	detector        *status.Detector
-	focusedPaneIdx  int
-	statusBar       string
-	width           int
-	height          int
-	ready           bool
+	state          viewState
+	sidebar        sidebar.Model
+	preview        preview.Model
+	newDialog      dialog.NewWorkspaceModel
+	delDialog      dialog.DeleteModel
+	helpDialog     dialog.HelpModel
+	keys           KeyMap
+	theme          theme.Theme
+	store          *workspace.Store
+	manager        *workspace.Manager
+	poller         *status.Poller
+	detector       *status.Detector
+	focusedPaneIdx int
+	statusBar      string
+	width          int
+	height         int
+	ready          bool
 }
 
 func NewApp(store *workspace.Store, manager *workspace.Manager, poller *status.Poller, detector *status.Detector) App {
@@ -174,6 +174,34 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.updatePreviewContent()
 			return a, nil
 
+		case key.Matches(msg, a.keys.Broadcast):
+			a.statusBar = unavailableFeatureStatus("Broadcast prompt")
+			return a, nil
+
+		case key.Matches(msg, a.keys.Diff):
+			a.statusBar = unavailableFeatureStatus("Diff viewer")
+			return a, nil
+
+		case key.Matches(msg, a.keys.Rename):
+			a.statusBar = unavailableFeatureStatus("Rename workspace")
+			return a, nil
+
+		case key.Matches(msg, a.keys.Filter):
+			a.statusBar = unavailableFeatureStatus("Workspace filter")
+			return a, nil
+
+		case key.Matches(msg, a.keys.MarkRead):
+			a.statusBar = unavailableFeatureStatus("Mark read")
+			return a, nil
+
+		case key.Matches(msg, a.keys.Restart):
+			a.statusBar = unavailableFeatureStatus("Restart agent")
+			return a, nil
+
+		case key.Matches(msg, a.keys.Stop):
+			a.statusBar = unavailableFeatureStatus("Stop agent")
+			return a, nil
+
 		case key.Matches(msg, a.keys.PaneLeft):
 			panes := a.availablePanes()
 			if len(panes) > 1 {
@@ -206,6 +234,10 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 
 	return a, tea.Batch(cmds...)
+}
+
+func unavailableFeatureStatus(feature string) string {
+	return fmt.Sprintf("%s is unavailable in this build", feature)
 }
 
 func (a App) updateNewDialog(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -396,7 +428,13 @@ func (a App) loadWorkspaces() tea.Msg {
 	}
 	ws, err := a.store.List()
 	if err != nil {
-		return workspacesLoadedMsg{}
+		return errMsg{err: fmt.Errorf("load workspaces: %w", err)}
+	}
+	ws, changed := status.RefreshWorkspaceStatuses(context.Background(), a.detector, ws)
+	if changed {
+		if err := a.store.Save(ws); err != nil {
+			return errMsg{err: fmt.Errorf("save refreshed statuses: %w", err)}
+		}
 	}
 	return workspacesLoadedMsg{workspaces: ws}
 }

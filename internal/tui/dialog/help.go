@@ -35,29 +35,41 @@ func (m HelpModel) View() string {
 
 	title := t.AppTitle.Render(" Keybindings")
 
-	bindings := [][2]string{
+	availableBindings := [][2]string{
 		{"j/k", "Navigate workspace list"},
 		{"h/l", "Switch preview pane tab"},
 		{"enter", "Attach to selected workspace"},
 		{"n", "New workspace"},
 		{"d", "Delete workspace"},
 		{"J", "Jump to next needing attention"},
-		{"b", "Broadcast prompt"},
-		{"D", "Diff viewer"},
-		{"r", "Rename workspace"},
-		{"/", "Filter workspaces"},
-		{"R", "Restart agent"},
-		{"s", "Stop agent"},
 		{"?", "Toggle this help"},
 		{"q", "Quit"},
 		{"", ""},
 		{"prefix+L", "Return to dashboard from workspace"},
 	}
 
+	unavailableBindings := [][2]string{
+		{"b", "Broadcast prompt (unavailable)"},
+		{"D", "Diff viewer (unavailable)"},
+		{"r", "Rename workspace (unavailable)"},
+		{"/", "Filter workspaces (unavailable)"},
+		{"m", "Mark read (unavailable)"},
+		{"R", "Restart agent (unavailable)"},
+		{"s", "Stop agent (unavailable)"},
+	}
+
 	var rows []string
-	for _, b := range bindings {
+	rows = append(rows, "  "+t.Dim.Render("Available"))
+	for _, b := range availableBindings {
 		key := t.HelpKey.Width(10).Render(b[0])
 		desc := t.HelpDesc.Render(b[1])
+		rows = append(rows, "  "+key+" "+desc)
+	}
+
+	rows = append(rows, "", "  "+t.Dim.Render("Unavailable"))
+	for _, b := range unavailableBindings {
+		key := t.HelpKey.Width(10).Render(b[0])
+		desc := t.Dim.Render(b[1])
 		rows = append(rows, "  "+key+" "+desc)
 	}
 
@@ -67,7 +79,7 @@ func (m HelpModel) View() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62")).
 		Padding(1, 2).
-		Width(50)
+		Width(56)
 
 	return border.Render(content)
 }
