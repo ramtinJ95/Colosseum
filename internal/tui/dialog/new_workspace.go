@@ -70,7 +70,7 @@ func NewNewWorkspace() NewWorkspaceModel {
 
 	return NewWorkspaceModel{
 		inputs:  [fieldCount]textinput.Model{nameInput, pathInput, branchInput},
-		agents:  agent.Available(),
+		agents:  agent.Supported(),
 		layouts: workspace.ValidLayouts(),
 	}
 }
@@ -87,12 +87,8 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 			return m, func() tea.Msg { return NewWorkspaceCancelMsg{} }
 
 		case "tab":
-			if m.focusIndex == int(fieldPath) {
-				current := m.inputs[fieldPath].Value()
-				suggestion := m.inputs[fieldPath].CurrentSuggestion()
-				if suggestion != "" && suggestion != current {
-					break
-				}
+			if m.focusIndex == int(fieldPath) && m.acceptPathSuggestion() {
+				return m, nil
 			}
 			m.focusIndex = (m.focusIndex + 1) % totalFields
 			m.updateFocus()
@@ -104,6 +100,9 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 			return m, nil
 
 		case "enter":
+			if m.focusIndex == int(fieldPath) && m.acceptPathSuggestion() {
+				return m, nil
+			}
 			if m.focusIndex < totalFields-1 {
 				m.focusIndex++
 				m.updateFocus()
@@ -216,6 +215,19 @@ func (m *NewWorkspaceModel) refreshPathSuggestions() {
 	m.inputs[fieldPath].SetSuggestions(suggestions)
 }
 
+func (m *NewWorkspaceModel) acceptPathSuggestion() bool {
+	current := m.inputs[fieldPath].Value()
+	suggestion := m.inputs[fieldPath].CurrentSuggestion()
+	if suggestion == "" || suggestion == current {
+		return false
+	}
+
+	m.inputs[fieldPath].SetValue(suggestion)
+	m.inputs[fieldPath].CursorEnd()
+	m.refreshPathSuggestions()
+	return true
+}
+
 func (m *NewWorkspaceModel) updateFocus() {
 	for i := range m.inputs {
 		if i == m.focusIndex {
@@ -241,6 +253,11 @@ func (m NewWorkspaceModel) View() string {
 			label = t.Dim.Render(label)
 		}
 		rows = append(rows, fmt.Sprintf("%s %s", label, m.inputs[i].View()))
+		if i == int(fieldPath) {
+			if hint := renderPathSuggestionHint(t, m.inputs[fieldPath]); hint != "" {
+				rows = append(rows, hint)
+			}
+		}
 	}
 
 	agentLabel := t.Dim.Render(" Agent:")
@@ -255,7 +272,7 @@ func (m NewWorkspaceModel) View() string {
 	}
 	rows = append(rows, fmt.Sprintf("%s %s", layoutLabel, renderChoices(layoutStrings(m.layouts), m.layoutIndex, m.focusIndex == selectorLayout)))
 
-	help := t.Dim.Render("  tab: navigate  h/l: select  enter: next/create  esc: cancel")
+	help := t.Dim.Render("  tab/enter: accept path, next/create  up/down: cycle matches  h/l: select  esc: cancel")
 
 	content := title + "\n\n" + strings.Join(rows, "\n") + "\n\n" + help
 
@@ -300,4 +317,22 @@ func layoutStrings(layouts []workspace.LayoutType) []string {
 		s[i] = string(l)
 	}
 	return s
+}
+
+func renderPathSuggestionHint(t theme.Theme, input textinput.Model) string {
+	matches := input.MatchedSuggestions()
+	if len(matches) == 0 {
+		return ""
+	}
+
+	current := input.CurrentSuggestion()
+	if current == "" {
+		return ""
+	}
+
+	hint := fmt.Sprintf("        %s %s", t.StatusWaiting.Render("suggestion:"), t.Dim.Render(current))
+	if len(matches) > 1 {
+		hint += t.Dim.Render(fmt.Sprintf("  (%d matches)", len(matches)))
+	}
+	return hint
 }
