@@ -23,8 +23,7 @@ type Theme struct {
 	StatusUnknown lipgloss.Style
 	BranchName    lipgloss.Style
 	AgentName     lipgloss.Style
-	UnreadBadge   lipgloss.Style
-	PreviewTitle  lipgloss.Style
+	PreviewTitle lipgloss.Style
 	HelpKey       lipgloss.Style
 	HelpDesc      lipgloss.Style
 	Dim           lipgloss.Style
@@ -52,8 +51,7 @@ func ThemeFromConfig(tc config.ThemeConfig) Theme {
 		StatusUnknown: lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Idle)),
 		BranchName:    lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Branch)),
 		AgentName:     lipgloss.NewStyle().Foreground(lipgloss.Color(tc.AgentName)),
-		UnreadBadge:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(tc.Waiting)),
-		PreviewTitle:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(tc.AppTitle)).Padding(0, 1),
+		PreviewTitle: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(tc.AppTitle)).Padding(0, 1),
 		HelpKey:       lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(tc.HelpKey)),
 		HelpDesc:      lipgloss.NewStyle().Foreground(lipgloss.Color(tc.HelpDesc)),
 		Dim:           lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Dim)),
