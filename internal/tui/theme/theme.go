@@ -7,24 +7,27 @@ import (
 )
 
 type Theme struct {
-	AppTitle       lipgloss.Style
-	SidebarBorder  lipgloss.Style
-	PreviewBorder  lipgloss.Style
-	SelectedItem   lipgloss.Style
-	NormalItem     lipgloss.Style
-	StatusWorking  lipgloss.Style
-	StatusWaiting  lipgloss.Style
-	StatusIdle     lipgloss.Style
-	StatusStopped  lipgloss.Style
-	StatusError    lipgloss.Style
-	StatusUnknown  lipgloss.Style
-	BranchName     lipgloss.Style
-	AgentName      lipgloss.Style
-	UnreadBadge    lipgloss.Style
-	PreviewTitle   lipgloss.Style
-	HelpKey        lipgloss.Style
-	HelpDesc       lipgloss.Style
-	Dim            lipgloss.Style
+	AppTitle      lipgloss.Style
+	SidebarBorder lipgloss.Style
+	PreviewBorder lipgloss.Style
+	DialogBorder  lipgloss.Style
+	SelectedItem  lipgloss.Style
+	NormalItem    lipgloss.Style
+	ActiveTab     lipgloss.Style
+	InactiveTab   lipgloss.Style
+	StatusWorking lipgloss.Style
+	StatusWaiting lipgloss.Style
+	StatusIdle    lipgloss.Style
+	StatusStopped lipgloss.Style
+	StatusError   lipgloss.Style
+	StatusUnknown lipgloss.Style
+	BranchName    lipgloss.Style
+	AgentName     lipgloss.Style
+	UnreadBadge   lipgloss.Style
+	PreviewTitle  lipgloss.Style
+	HelpKey       lipgloss.Style
+	HelpDesc      lipgloss.Style
+	Dim           lipgloss.Style
 }
 
 func DefaultTheme() Theme {
@@ -36,8 +39,11 @@ func ThemeFromConfig(tc config.ThemeConfig) Theme {
 		AppTitle:      lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(tc.AppTitle)),
 		SidebarBorder: lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(tc.Border)),
 		PreviewBorder: lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(tc.Border)),
+		DialogBorder:  lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(tc.Border)),
 		SelectedItem:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(tc.SelectedFG)).Background(lipgloss.Color(tc.SelectedBG)),
 		NormalItem:    lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Normal)),
+		ActiveTab:     lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(tc.SelectedFG)).Background(lipgloss.Color(tc.SelectedBG)).Padding(0, 1),
+		InactiveTab:   lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Dim)).Padding(0, 1),
 		StatusWorking: lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Working)),
 		StatusWaiting: lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Waiting)),
 		StatusIdle:    lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Idle)),

@@ -67,7 +67,12 @@ var (
 )
 
 func init() {
-	cfg, _ = config.Load(config.DefaultPath())
+	var err error
+	cfg, err = config.Load(config.DefaultPath())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "load config: %v\n", err)
+		os.Exit(1)
+	}
 
 	newCmd.Flags().StringVarP(&flagPath, "path", "p", ".", "project directory path")
 	newCmd.Flags().StringVarP(&flagAgent, "agent", "a", cfg.Defaults.Agent, "agent type (claude, codex)")

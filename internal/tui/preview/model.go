@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/ramtinj/colosseum/internal/tui/theme"
 )
 
 type Model struct {
@@ -16,10 +17,11 @@ type Model struct {
 	Width     int
 	Height    int
 	ready     bool
+	theme     theme.Theme
 }
 
 func New() Model {
-	return Model{}
+	return Model{theme: theme.DefaultTheme()}
 }
 
 func (m Model) Init() tea.Cmd {
@@ -60,6 +62,11 @@ func (m *Model) SetContent(title, content string) {
 	}
 	m.viewport.SetContent(content)
 	m.viewport.GotoBottom()
+}
+
+func (m Model) WithTheme(t theme.Theme) Model {
+	m.theme = t
+	return m
 }
 
 func wrapContent(content string, width int) string {

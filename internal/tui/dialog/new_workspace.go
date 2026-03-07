@@ -8,7 +8,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/ramtinj/colosseum/internal/agent"
 	"github.com/ramtinj/colosseum/internal/tui/theme"
 	"github.com/ramtinj/colosseum/internal/workspace"
@@ -49,6 +48,7 @@ type NewWorkspaceModel struct {
 	layouts     []workspace.LayoutType
 	Width       int
 	Height      int
+	theme       theme.Theme
 }
 
 type pathCycleState struct {
@@ -79,6 +79,7 @@ func NewNewWorkspace() NewWorkspaceModel {
 		inputs:  [fieldCount]textinput.Model{nameInput, pathInput, branchInput},
 		agents:  agent.Supported(),
 		layouts: workspace.ValidLayouts(),
+		theme:   theme.DefaultTheme(),
 	}
 }
 
@@ -296,7 +297,7 @@ func (m *NewWorkspaceModel) updateFocus() {
 }
 
 func (m NewWorkspaceModel) View() string {
-	t := theme.DefaultTheme()
+	t := m.theme
 
 	title := t.AppTitle.Render(" New Workspace")
 
@@ -321,29 +322,26 @@ func (m NewWorkspaceModel) View() string {
 	if m.focusIndex == selectorAgent {
 		agentLabel = t.StatusWaiting.Render(" Agent:")
 	}
-	rows = append(rows, fmt.Sprintf("%s %s", agentLabel, renderChoices(agentStrings(m.agents), m.agentIndex, m.focusIndex == selectorAgent)))
+	rows = append(rows, fmt.Sprintf("%s %s", agentLabel, renderChoices(t, agentStrings(m.agents), m.agentIndex, m.focusIndex == selectorAgent)))
 
 	layoutLabel := t.Dim.Render("Layout:")
 	if m.focusIndex == selectorLayout {
 		layoutLabel = t.StatusWaiting.Render("Layout:")
 	}
-	rows = append(rows, fmt.Sprintf("%s %s", layoutLabel, renderChoices(layoutStrings(m.layouts), m.layoutIndex, m.focusIndex == selectorLayout)))
+	rows = append(rows, fmt.Sprintf("%s %s", layoutLabel, renderChoices(t, layoutStrings(m.layouts), m.layoutIndex, m.focusIndex == selectorLayout)))
 
 	help := t.Dim.Render("  tab: complete path  enter: next/create  up/down: cycle matches  h/l: select  esc: cancel")
 
 	content := title + "\n\n" + strings.Join(rows, "\n") + "\n\n" + help
 
-	border := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("220")).
+	border := t.DialogBorder.
 		Padding(1, 2).
 		Width(50)
 
 	return border.Render(content)
 }
 
-func renderChoices(items []string, selected int, focused bool) string {
-	t := theme.DefaultTheme()
+func renderChoices(t theme.Theme, items []string, selected int, focused bool) string {
 	var parts []string
 	for i, item := range items {
 		if i == selected {
@@ -358,6 +356,11 @@ func renderChoices(items []string, selected int, focused bool) string {
 		parts = append(parts, item)
 	}
 	return strings.Join(parts, " ")
+}
+
+func (m NewWorkspaceModel) WithTheme(t theme.Theme) NewWorkspaceModel {
+	m.theme = t
+	return m
 }
 
 func agentStrings(agents []agent.AgentType) []string {
