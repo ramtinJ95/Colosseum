@@ -16,6 +16,5 @@ type Workspace struct {
 	Status      agent.Status      `json:"status"`
 	SessionName string            `json:"session_name"`
 	PaneTargets map[string]string `json:"pane_targets"`
-	UnreadCount int               `json:"unread_count"`
-	CreatedAt   time.Time         `json:"created_at"`
+	CreatedAt time.Time `json:"created_at"`
 }

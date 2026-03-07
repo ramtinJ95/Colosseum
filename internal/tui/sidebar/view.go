@@ -34,12 +34,7 @@ func (m Model) View() string {
 			branchStr = t.BranchName.Render(fmt.Sprintf("[%s]", ws.Branch))
 		}
 
-		unread := ""
-		if ws.UnreadCount > 0 {
-			unread = t.UnreadBadge.Render(fmt.Sprintf(" (%d)", ws.UnreadCount))
-		}
-
-		line1 := fmt.Sprintf("  %s %s %s%s", styledIcon, title, branchStr, unread)
+		line1 := fmt.Sprintf("  %s %s %s", styledIcon, title, branchStr)
 		line2 := fmt.Sprintf("    %s · %s", agentStr, statusStr)
 
 		if i == m.Cursor {
