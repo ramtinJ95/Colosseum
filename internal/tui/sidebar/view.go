@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/ramtinj/colosseum/internal/tui/theme"
 )
 
@@ -12,7 +12,7 @@ func (m Model) View() string {
 	t := m.theme
 
 	if len(m.Workspaces) == 0 {
-		empty := t.Dim.Render("  No workspaces yet.\n  Press 'n' to create one.")
+		empty := t.Dim.Render(fmt.Sprintf("  No workspaces yet.\n  Press '%s' to create one.", bindingLabel(m.newKey)))
 		return t.SidebarBorder.Width(m.Width).Height(m.Height).Render(
 			t.AppTitle.Render(" WORKSPACES") + "\n\n" + empty,
 		)
@@ -62,16 +62,9 @@ func (m Model) View() string {
 	return style.Render(content)
 }
 
-func (m Model) ShortHelp() string {
-	t := m.theme
-	help := []string{
-		t.HelpKey.Render("j/k") + t.HelpDesc.Render(" navigate"),
-		t.HelpKey.Render("h/l") + t.HelpDesc.Render(" pane"),
-		t.HelpKey.Render("enter") + t.HelpDesc.Render(" attach"),
-		t.HelpKey.Render("n") + t.HelpDesc.Render(" new"),
-		t.HelpKey.Render("b") + t.HelpDesc.Render(" broadcast"),
-		t.HelpKey.Render("?") + t.HelpDesc.Render(" help"),
-		t.HelpKey.Render("q") + t.HelpDesc.Render(" quit"),
+func bindingLabel(binding key.Binding) string {
+	if label := binding.Help().Key; label != "" {
+		return label
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Top, strings.Join(help, "  "))
+	return strings.Join(binding.Keys(), "/")
 }

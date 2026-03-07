@@ -150,3 +150,79 @@ func TestBroadcastDialogInheritsConfiguredKeymap(t *testing.T) {
 		t.Fatalf("view = %q, want configured movement key help", view)
 	}
 }
+
+func TestConfiguredEmptyStateUsesNewBinding(t *testing.T) {
+	cfg := config.Default()
+	cfg.Keys.New = "x"
+
+	app := NewApp(nil, nil, nil, nil, cfg)
+	app.width = 120
+	app.height = 40
+	app.ready = true
+	app.layoutPanels()
+
+	view := app.View()
+	if !strings.Contains(view, "Press 'x' to create one.") {
+		t.Fatalf("view = %q, want configured new key in empty state", view)
+	}
+}
+
+func TestConfiguredPreviewTabHelpUsesPaneBindings(t *testing.T) {
+	cfg := config.Default()
+	cfg.Keys.PaneLeft = "a"
+	cfg.Keys.PaneRight = "d"
+
+	capturer := &appTestCapturer{content: "pane output"}
+	detector := status.NewDetector(capturer, 50)
+
+	app := NewApp(nil, nil, nil, detector, cfg)
+	app.preview.SetSize(80, 20)
+	app.sidebar.SetWorkspaces([]workspace.Workspace{{
+		ID:        "ws-1",
+		Title:     "test",
+		AgentType: agent.Codex,
+		PaneTargets: map[string]string{
+			"agent": "%1",
+			"shell": "%2",
+		},
+	}})
+	app.updatePreviewContent()
+
+	view := app.preview.View()
+	if !strings.Contains(view, "a/d: switch pane") {
+		t.Fatalf("view = %q, want configured pane key help", view)
+	}
+}
+
+func TestConfiguredHelpOverlayUsesCurrentBindings(t *testing.T) {
+	cfg := config.Default()
+	cfg.Keys.Up = "w"
+	cfg.Keys.Down = "s"
+	cfg.Keys.PaneLeft = "a"
+	cfg.Keys.PaneRight = "d"
+	cfg.Keys.Help = "u"
+	cfg.Keys.Quit = "x"
+
+	app := NewApp(nil, nil, nil, nil, cfg)
+	app.width = 120
+	app.height = 40
+	app.ready = true
+	app.layoutPanels()
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'u'}})
+	updated := model.(App)
+	if updated.state != viewHelp {
+		t.Fatalf("state after configured help key = %v, want viewHelp", updated.state)
+	}
+
+	view := updated.helpDialog.View()
+	if !strings.Contains(view, "s/w") {
+		t.Fatalf("view = %q, want configured navigation bindings", view)
+	}
+	if !strings.Contains(view, "a/d") {
+		t.Fatalf("view = %q, want configured pane bindings", view)
+	}
+	if !strings.Contains(view, "u or x or esc") {
+		t.Fatalf("view = %q, want configured close bindings", view)
+	}
+}
