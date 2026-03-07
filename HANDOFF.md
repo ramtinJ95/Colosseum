@@ -40,9 +40,8 @@ Colosseum is a Go + tmux + Bubble Tea workspace manager for running AI coding ag
 3. Theme config now propagates through the sidebar, preview, delete dialog, help dialog, and new-workspace dialog rather than stopping at the status bar.
 4. Theme primitives were expanded so tab styling and dialog borders also derive from config-backed theme state instead of ad hoc hardcoded colors.
 5. Regression coverage now asserts remapped sidebar navigation plus theme injection across sidebar, preview, and dialogs.
-6. Two follow-up gaps are intentionally left in `scratch/BACKLOG.md`:
-   - help text is still not generated from the effective configured keybindings
-   - duplicate keybinding conflicts are still not validated and can be shadowed by action-switch order
+6. One follow-up gap is intentionally left in `scratch/BACKLOG.md`:
+   - help text is still not generated from the effective configured keybindings across the full TUI
 
 These changes landed after the earlier config introduction commits that added `internal/config/` and wired config into the CLI/TUI startup path.
 

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -105,6 +106,40 @@ func TestEnterEmitsExpandedHomePath(t *testing.T) {
 	}
 	if got := createMsg.Path; got != filepath.Join(home, "project") {
 		t.Fatalf("path = %q, want %q", got, filepath.Join(home, "project"))
+	}
+}
+
+func TestConfiguredDownCyclesPathSuggestions(t *testing.T) {
+	root := t.TempDir()
+	alpha := filepath.Join(root, "project-alpha") + "/"
+	beta := filepath.Join(root, "project-beta") + "/"
+	for _, dir := range []string{alpha, beta} {
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+	}
+
+	model := newFocusedPathModel().WithKeyMap(NewWorkspaceKeyMap{
+		Up:         key.NewBinding(key.WithKeys("w")),
+		Down:       key.NewBinding(key.WithKeys("s")),
+		Enter:      key.NewBinding(key.WithKeys("enter")),
+		Tab:        key.NewBinding(key.WithKeys("tab")),
+		BackTab:    key.NewBinding(key.WithKeys("shift+tab")),
+		Cancel:     key.NewBinding(key.WithKeys("esc")),
+		SelectPrev: key.NewBinding(key.WithKeys("a")),
+		SelectNext: key.NewBinding(key.WithKeys("d")),
+	})
+	model.inputs[fieldPath].SetValue(filepath.Join(root, "project-"))
+	model.refreshPathSuggestions()
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if got := updated.inputs[fieldPath].Value(); got != alpha {
+		t.Fatalf("first down value = %q, want %q", got, alpha)
+	}
+
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if got := updated.inputs[fieldPath].Value(); got != beta {
+		t.Fatalf("second down value = %q, want %q", got, beta)
 	}
 }
 

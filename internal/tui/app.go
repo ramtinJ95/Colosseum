@@ -50,6 +50,7 @@ type App struct {
 	broadcastDialog        dialog.BroadcastModel
 	helpDialog             dialog.HelpModel
 	keys                   KeyMap
+	keyConfig              config.KeysConfig
 	theme                  theme.Theme
 	store                  *workspace.Store
 	manager                *workspace.Manager
@@ -72,6 +73,7 @@ func NewApp(store *workspace.Store, manager *workspace.Manager, poller *status.P
 		sidebar:                sidebar.New().WithTheme(appTheme).WithNavigationKeys(keys.Up, keys.Down),
 		preview:                preview.New().WithTheme(appTheme),
 		keys:                   keys,
+		keyConfig:              cfg.Keys,
 		theme:                  appTheme,
 		store:                  store,
 		manager:                manager,
@@ -177,13 +179,17 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, a.keys.New):
 			a.state = viewNewWorkspace
-			a.newDialog = dialog.NewNewWorkspace().WithTheme(a.theme)
+			a.newDialog = dialog.NewNewWorkspace().
+				WithTheme(a.theme).
+				WithKeyMap(dialog.NewWorkspaceKeyMapFromConfig(a.keyConfig))
 			return a, a.newDialog.Init()
 
 		case key.Matches(msg, a.keys.Delete):
 			if ws := a.sidebar.SelectedWorkspace(); ws != nil {
 				a.state = viewDeleteConfirm
-				a.delDialog = dialog.NewDelete(ws.ID, ws.Title).WithTheme(a.theme)
+				a.delDialog = dialog.NewDelete(ws.ID, ws.Title).
+					WithTheme(a.theme).
+					WithKeyMap(dialog.DeleteKeyMapFromConfig(a.keyConfig))
 			}
 			return a, nil
 
@@ -217,12 +223,7 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.state = viewBroadcast
 			a.broadcastDialog = dialog.NewBroadcast(a.sidebar.Workspaces, selectedID).
 				WithTheme(a.theme).
-				WithKeyMap(dialog.BroadcastKeyMap{
-					Up:    a.keys.Up,
-					Down:  a.keys.Down,
-					Tab:   a.keys.Tab,
-					Enter: a.keys.Enter,
-				})
+				WithKeyMap(dialog.BroadcastKeyMapFromConfig(a.keyConfig))
 			a.broadcastDialog.SetSize(a.width, a.height)
 			return a, a.broadcastDialog.Init()
 
