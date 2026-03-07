@@ -12,6 +12,7 @@ import (
 var (
 	brailleRange         = regexp.MustCompile(`[\x{2800}-\x{28FF}]`)
 	approvalQuestionLine = regexp.MustCompile(`(?i)\b(allow|approve|deny|permission|confirm|proceed|continue|grant|access)\b.*\?\s*$`)
+	promptOnlyLine       = regexp.MustCompile(`^\s*[❯›>$]\s*$`)
 )
 
 type PaneCapturer interface {
@@ -146,7 +147,7 @@ func linesBeforeBottom(lines []string, n int) []string {
 }
 
 func isPromptOnly(line string) bool {
-	return regexp.MustCompile(`^\s*[❯›>$]\s*$`).MatchString(line)
+	return promptOnlyLine.MatchString(line)
 }
 
 func matchesApprovalQuestion(lines []string) bool {
