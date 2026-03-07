@@ -4,7 +4,7 @@ import "sort"
 
 var registry = make(map[AgentType]*AgentDef)
 
-var supportedAgents = []AgentType{Claude, Codex}
+var supportedAgents = []AgentType{Claude, Codex, OpenCode}
 
 func Register(def *AgentDef) {
 	registry[def.Name] = def

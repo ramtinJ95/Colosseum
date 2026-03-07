@@ -9,15 +9,18 @@ func init() {
 		LaunchFlags: []string{},
 		YoloFlags:   []string{},
 		WorkingPatterns: []*regexp.Regexp{
+			regexp.MustCompile(`(?i)esc\s*(to\s+)?interrupt`),
 			BrailleSpinner,
-			regexp.MustCompile(`(?i)(running|processing)`),
 		},
 		WaitingPatterns: []*regexp.Regexp{
-			regexp.MustCompile(`(?i)(confirm|approve)`),
-			regexp.MustCompile(`\?\s*$`),
-		},
-		IdlePatterns: []*regexp.Regexp{
-			CommonPromptChars,
+			regexp.MustCompile(`(?i)enter to select`),
+			regexp.MustCompile(`(?i)esc to cancel`),
+			regexp.MustCompile(`(?i)\(y/n\)`),
+			regexp.MustCompile(`(?i)\[y/n\]`),
+			regexp.MustCompile(`(?i)(continue|proceed)\?`),
+			regexp.MustCompile(`(?i)(approve|allow)`),
+			regexp.MustCompile(`❯\s*[123]\.`),
+			regexp.MustCompile(`^\s*>{1,2}\s*$`),
 		},
 		ErrorPatterns: []*regexp.Regexp{
 			RateLimitPattern,
