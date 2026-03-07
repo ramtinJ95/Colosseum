@@ -141,7 +141,7 @@ func TestDetectFromContent_StatusBarFiltered(t *testing.T) {
 
 	// "bypass permissions" in the status bar was triggering false Waiting
 	// via the (?i)permission pattern. Status bar should be filtered out.
-	content := "· Fluttering.. (thought for 2s)\n└ Tip: Double-tap esc to rewind\n\n❯\n[Opus 4.6] Tokens: 32,863/200,000 | Remaining: 167,137 | Used: 16.0%\n-- INSERT -- >> bypass permissions on (shift+tab to cycle)"
+	content := "· Fluttered for 2s\n└ Tip: Double-tap esc to rewind\n\n❯\n[Opus 4.6] Tokens: 32,863/200,000 | Remaining: 167,137 | Used: 16.0%\n-- INSERT -- >> bypass permissions on (shift+tab to cycle)"
 	got := DetectFromContent(content, def)
 	if got == agent.StatusWaiting {
 		t.Errorf("status bar 'bypass permissions' should not trigger Waiting, got %s", got)
