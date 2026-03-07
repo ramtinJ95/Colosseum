@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -16,11 +17,13 @@ type mockSessionCreator struct {
 	splitCalls    []mockSplitCall
 	switchCalls   []string
 	sendKeysCalls []mockSendKeysCall
+	createCount   int
 	splitCount    int
 	createErr     error
 	killErr       error
 	splitErrAt    int
 	sendKeysErr   error
+	sendKeysErrs  map[string]error
 }
 
 type mockCreateCall struct {
@@ -44,7 +47,9 @@ func (m *mockSessionCreator) CreateSession(_ context.Context, name string, start
 	if m.createErr != nil {
 		return "", m.createErr
 	}
-	return "%0", nil
+	paneID := fmt.Sprintf("%%%d", m.createCount)
+	m.createCount++
+	return paneID, nil
 }
 
 func (m *mockSessionCreator) KillSession(_ context.Context, name string) error {
@@ -72,6 +77,9 @@ func (m *mockSessionCreator) SwitchClient(_ context.Context, name string) error 
 
 func (m *mockSessionCreator) SendKeys(_ context.Context, target string, keys string) error {
 	m.sendKeysCalls = append(m.sendKeysCalls, mockSendKeysCall{Target: target, Keys: keys})
+	if err, ok := m.sendKeysErrs[target]; ok {
+		return err
+	}
 	return m.sendKeysErr
 }
 
@@ -267,5 +275,125 @@ func TestManagerList(t *testing.T) {
 	}
 	if len(workspaces) != 3 {
 		t.Errorf("expected 3 workspaces, got %d", len(workspaces))
+	}
+}
+
+func TestManagerBroadcast(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	mock := &mockSessionCreator{}
+	mgr := NewManager(store, mock, "colo-")
+
+	ws1, err := mgr.Create(context.Background(), "ws-1", agent.Claude, "/tmp/p1", "main", LayoutAgent)
+	if err != nil {
+		t.Fatalf("Create ws-1: %v", err)
+	}
+	ws2, err := mgr.Create(context.Background(), "ws-2", agent.Codex, "/tmp/p2", "main", LayoutAgent)
+	if err != nil {
+		t.Fatalf("Create ws-2: %v", err)
+	}
+
+	mock.sendKeysCalls = nil
+
+	result, err := mgr.Broadcast(context.Background(), "implement the feature", []string{ws2.ID, ws1.ID})
+	if err != nil {
+		t.Fatalf("Broadcast: %v", err)
+	}
+
+	if result.Requested != 2 {
+		t.Fatalf("requested = %d, want 2", result.Requested)
+	}
+	if len(result.Delivered) != 2 {
+		t.Fatalf("delivered = %d, want 2", len(result.Delivered))
+	}
+	if len(result.Failed) != 0 {
+		t.Fatalf("failed = %d, want 0", len(result.Failed))
+	}
+	if len(mock.sendKeysCalls) != 2 {
+		t.Fatalf("expected 2 send-keys calls, got %d", len(mock.sendKeysCalls))
+	}
+	if mock.sendKeysCalls[0].Target != ws2.PaneTargets["agent"] {
+		t.Fatalf("first send target = %q, want %q", mock.sendKeysCalls[0].Target, ws2.PaneTargets["agent"])
+	}
+	if mock.sendKeysCalls[0].Keys != "implement the feature" {
+		t.Fatalf("first send keys = %q, want broadcast prompt", mock.sendKeysCalls[0].Keys)
+	}
+	if mock.sendKeysCalls[1].Target != ws1.PaneTargets["agent"] {
+		t.Fatalf("second send target = %q, want %q", mock.sendKeysCalls[1].Target, ws1.PaneTargets["agent"])
+	}
+}
+
+func TestManagerBroadcastContinuesOnSendError(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	mock := &mockSessionCreator{}
+	mgr := NewManager(store, mock, "colo-")
+
+	ws1, err := mgr.Create(context.Background(), "ws-1", agent.Claude, "/tmp/p1", "main", LayoutAgent)
+	if err != nil {
+		t.Fatalf("Create ws-1: %v", err)
+	}
+	ws2, err := mgr.Create(context.Background(), "ws-2", agent.Codex, "/tmp/p2", "main", LayoutAgent)
+	if err != nil {
+		t.Fatalf("Create ws-2: %v", err)
+	}
+
+	mock.sendKeysCalls = nil
+	mock.sendKeysErrs = map[string]error{
+		ws1.PaneTargets["agent"]: errors.New("tmux down"),
+	}
+
+	result, err := mgr.Broadcast(context.Background(), "ship it", []string{ws1.ID, ws2.ID})
+	if err != nil {
+		t.Fatalf("Broadcast: %v", err)
+	}
+
+	if len(result.Delivered) != 1 || result.Delivered[0] != "ws-2" {
+		t.Fatalf("delivered = %v, want [ws-2]", result.Delivered)
+	}
+	if len(result.Failed) != 1 {
+		t.Fatalf("failed = %d, want 1", len(result.Failed))
+	}
+	if result.Failed[0].WorkspaceTitle != "ws-1" {
+		t.Fatalf("failed workspace = %q, want ws-1", result.Failed[0].WorkspaceTitle)
+	}
+	if len(mock.sendKeysCalls) != 2 {
+		t.Fatalf("expected 2 send attempts, got %d", len(mock.sendKeysCalls))
+	}
+}
+
+func TestManagerBroadcastRejectsInvalidInput(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	mock := &mockSessionCreator{}
+	mgr := NewManager(store, mock, "colo-")
+
+	if _, err := mgr.Broadcast(context.Background(), "   ", []string{"ws-1"}); err == nil {
+		t.Fatal("expected empty prompt error")
+	}
+	if _, err := mgr.Broadcast(context.Background(), "prompt", nil); err == nil {
+		t.Fatal("expected empty workspace selection error")
+	}
+}
+
+func TestManagerBroadcastReportsMissingWorkspace(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	mock := &mockSessionCreator{}
+	mgr := NewManager(store, mock, "colo-")
+
+	result, err := mgr.Broadcast(context.Background(), "prompt", []string{"missing"})
+	if err != nil {
+		t.Fatalf("Broadcast: %v", err)
+	}
+
+	if result.Requested != 1 {
+		t.Fatalf("requested = %d, want 1", result.Requested)
+	}
+	if len(result.Delivered) != 0 {
+		t.Fatalf("delivered = %d, want 0", len(result.Delivered))
+	}
+	if len(result.Failed) != 1 {
+		t.Fatalf("failed = %d, want 1", len(result.Failed))
 	}
 }

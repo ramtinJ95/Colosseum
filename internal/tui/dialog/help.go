@@ -41,6 +41,7 @@ func (m HelpModel) View() string {
 		{"enter", "Attach to selected workspace"},
 		{"n", "New workspace"},
 		{"d", "Delete workspace"},
+		{"b", "Broadcast prompt"},
 		{"J", "Jump to next needing attention"},
 		{"?", "Toggle this help"},
 		{"q", "Quit"},
@@ -49,7 +50,6 @@ func (m HelpModel) View() string {
 	}
 
 	unavailableBindings := [][2]string{
-		{"b", "Broadcast prompt (unavailable)"},
 		{"D", "Diff viewer (unavailable)"},
 		{"r", "Rename workspace (unavailable)"},
 		{"/", "Filter workspaces (unavailable)"},
