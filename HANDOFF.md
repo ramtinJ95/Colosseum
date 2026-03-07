@@ -26,12 +26,18 @@ Colosseum is a Go + tmux + Bubble Tea workspace manager for running AI coding ag
 |--------|-------|
 | Go source files under `cmd/` + `internal/` | 45 |
 | Test files | 19 |
-| Test functions | 95 |
+| Test functions | 97 |
 | Go packages under `cmd/` + `internal/` | 11 |
 | CLI subcommands | 5 (`new`, `list`, `attach`, `broadcast`, `delete`) |
 | Fixture files | 35 files |
 
 ### Recent Changes Since The Previous Handoff
+
+**Cleanup and consolidation (2026-03-07)** — three follow-up fixes after the backlog review:
+
+1. Removed dead notification code: `UnreadCount` field on `Workspace`, `UnreadBadge` theme style, and sidebar rendering that was never incremented.
+2. Consolidated three duplicate `bindingLabel` functions (in `tui/help.go`, `dialog/keymap.go`, `sidebar/view.go`) into a single exported `dialog.BindingLabel`.
+3. Hoisted the `isPromptOnly` regex in `status/detector.go` to a package-level `var` so it is compiled once instead of on every call.
 
 **Broadcast command and fixture coverage validation (2026-03-07)** — two stale gaps were rechecked against the live tree and documented correctly:
 
@@ -219,7 +225,7 @@ The “legacy definition still registered” detail matters because existing sav
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Sidebar + preview layout | **Done** | Main app composes sidebar and preview with lipgloss. |
-| Sidebar workspace list with status icons | **Done** | Includes branch and unread badge rendering. |
+| Sidebar workspace list with status icons | **Done** | Includes branch rendering. |
 | Preview panel | **Done** | Shows selected pane content, wraps long lines to viewport width, auto-scrolls to bottom on content updates, and refreshes on a timer. |
 | Pane tab bar | **Done** | Defaults are `h` / `l`, but the actual pane-switch bindings are config-driven. |
 | New workspace dialog | **Done** | Name/path/branch inputs plus agent/layout selectors. |
@@ -258,7 +264,7 @@ The “legacy definition still registered” detail matters because existing sav
 | `keys.diff` | Diff viewer | **Unavailable** | Default is `D`; same behavior. |
 | `keys.rename` | Rename workspace | **Unavailable** | Default is `r`; same behavior. |
 | `keys.filter` | Filter/search workspaces | **Unavailable** | Default is `/`; same behavior. |
-| `keys.mark_read` | Reserved / unused | **Unavailable** | Default is `m`; there is currently no shipped action behind it. |
+| `keys.mark_read` | Reserved / unused | **Unavailable** | Default is `m`; the backing `UnreadCount` field has been removed, so this keybinding is vestigial. |
 | `keys.restart` | Restart agent | **Unavailable** | Default is `R`; same behavior. |
 | `keys.stop` | Stop agent | **Unavailable** | Default is `s`; same behavior. |
 
@@ -301,6 +307,12 @@ Things that are no longer current issues and should not be re-raised as if unfix
 - preview content overflowing past the pane border
 - no deterministic way back to the dashboard after attaching to a workspace
 - current live Claude/Codex CLI output missing from fixture coverage
+- `UnreadCount` dead field / `UnreadBadge` dead style (removed)
+- hardcoded `prefix+e` in attach status bar (now uses `tmux.return_key` from config)
+- duplicate `bindingLabel` functions across packages (consolidated into `dialog.BindingLabel`)
+- `isPromptOnly` regex recompiled on every call (hoisted to package-level var)
+- hardcoded help text and dialog hints ignoring configured keybindings (now config-driven)
+- duplicate key conflicts silently shadowed at runtime (now rejected at config load)
 
 ---
 
@@ -327,10 +339,10 @@ If picking up from here, the best order is:
 4. **Implement restart/stop first among the unavailable TUI actions**
    - These are simpler than broadcast/diff/rename/filter and would convert placeholders into genuinely useful operational controls.
 
-5. **Finish the config UX instead of reopening the config plumbing**
-   - Generate help text from the effective configured keybindings.
-   - Validate duplicate key conflicts at load time.
-   - Consider a sample/default config file or `colosseum config init` flow once the surface stabilizes.
+5. **Consider a sample/default config file or `colosseum config init` flow**
+   - Help text and dialog hints are now generated from the effective configured keybindings.
+   - Duplicate key conflicts are now rejected at config load time.
+   - A `colosseum config init` command or embedded default config would help discoverability once the surface stabilizes.
 
 ---
 
