@@ -30,7 +30,17 @@ Colosseum is a Go + tmux + Bubble Tea workspace manager for running AI coding ag
 
 ### Recent Changes Since The Previous Handoff
 
-These landed after the older 2026-03-04 handoff:
+**Status detection hardening (2026-03-07)** — researched cmux, agent-of-empires, hive, agent-deck, and claude-squad to learn how other tmux-based agent managers detect agent state. Applied four improvements:
+
+13. **ANSI stripping**: New `StripANSI()` in `internal/status/normalize.go` strips CSI, OSC, and simple escape sequences from pane content before pattern matching. Single-pass O(n) parser, no regex.
+14. **Detection window 10→30 lines**: `lastNonEmptyLines` increased from 10 to 30 non-empty lines so questions asked further back aren't lost from the analysis window.
+15. **Pane title detection**: `PaneCapturer` interface extended with `CapturePaneTitle()`. Claude Code sets braille spinner chars (U+2800-U+28FF) in the tmux pane title while working. Used as a supplementary Working signal that upgrades `StatusUnknown` only — never overrides Idle/Waiting/Error (title is sticky and may not be cleared after a crash).
+16. **Spike/hysteresis filtering**: Poller now requires non-urgent states to persist for 1s (spike window) before confirming a transition, with a 500ms minimum hold on the current state (hysteresis). Urgent statuses (Waiting, Error, Stopped) and initial detection bypass both filters. Configurable via `WithSpikeWindow()`/`WithHysteresisWindow()` options.
+17. **Tiered window narrowing**: In the non-idle detection path, Waiting patterns check only the last 10 lines (not all 30). Working and Error still check all 30. This matches hive (15 lines) and agent-deck (tiered 15/10/5/3/1).
+18. **Tighter waiting patterns**: Removed broad `\?\s*$` from Claude and Codex `WaitingPatterns` (no other project uses such a vague pattern). The question-mark check is preserved only in the idle path's 3-line window for catching natural-language questions at the prompt.
+19. **Race fix**: `mockCapturer` in poller tests now uses `sync.Mutex` and `SetContent()` for safe concurrent access — confirmed clean with `go test -race`.
+
+These changes landed before the 2026-03-04 items below:
 
 1. New workspace creation is now intentionally restricted to `claude` and `codex`.
 2. The new-workspace path field now behaves more like a shell:
@@ -130,7 +140,11 @@ The “legacy definition still registered” detail matters because existing sav
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Background polling | **Done** | `Poller.Run` emits status updates on an interval. |
+| ANSI stripping | **Done** | `StripANSI()` in `normalize.go` strips escape sequences before pattern matching. |
 | Per-agent regex detection | **Done** | Bottom prompt lines now resolve contextually: visible recent work keeps `Working`, visible recent question/choice state yields `Waiting`, otherwise prompt-only falls back to `Idle`. |
+| Tiered window narrowing | **Done** | 30-line window for Working/Error, 10-line window for Waiting in non-idle path, 3-line window for idle-path question detection. |
+| Pane title detection | **Done** | Braille in tmux pane title upgrades `Unknown` → `Working`. Does not override `Idle` (title is sticky). |
+| Spike/hysteresis filtering | **Done** | 1s spike + 500ms hysteresis prevents flicker. Urgent states (Waiting/Error/Stopped) bypass. Configurable via `WithSpikeWindow`/`WithHysteresisWindow`. |
 | Current Claude/Codex CLI drift coverage | **Done** | Detection rules now cover current Claude `✻ Cooked for ...` lines, current Claude footer chrome, current Codex `Working (... esc to interrupt)` lines, and current Codex footer chrome. |
 | Fixture-driven testing | **Done** | Fixture coverage exists for Claude, Codex, and Gemini, including current live Claude/Codex pane formats. |
 | Pane targeting | **Done** | Uses real pane IDs returned by tmux. |
@@ -246,9 +260,10 @@ The “legacy definition still registered” detail matters because existing sav
 4. The project vision still references git worktrees, but the actual create path still just launches tmux sessions in an existing directory and stores branch metadata.
 5. The intentional supported create surface is only `claude` and `codex`, even though legacy definitions for Gemini/OpenCode/Aider remain registered.
 6. OpenCode and Aider status definitions still have no dedicated fixture coverage.
-7. Status detection is materially better than it was at the start of this session, but it is still heuristic and regex-driven. Current Claude/Codex terminal formats are covered; future CLI chrome drift is still a risk.
+7. Status detection is materially better after the 2026-03-07 hardening (ANSI stripping, tiered windows, spike/hysteresis, pane title signal), but it is still fundamentally heuristic and regex-driven. The most impactful next step would be **hook-based detection for Claude Code** — using Claude's native `settings.json` hooks (`PreToolUse`, `UserPromptSubmit`, `Stop`, `Notification`) to have Claude write its own state to a file, like agent-of-empires and cmux do. This eliminates the regex arms race entirely for Claude. See the research notes in the 2026-03-07 session for detailed implementation patterns from both projects.
 8. “Waiting” semantics are still only partially semantic. The current rule now treats prompt-plus-recent-question states as waiting, but there is still no protocol-level signal that cleanly separates “assistant asked a question in prose” from “assistant is truly blocked on user input.”
 9. The app still has two status-update authorities: the background poller and the direct refresh call used during initial TUI load. This is workable now, but still worth consolidating before larger event flows are added.
+10. The `PaneCapturer` interface now has two methods (`CapturePane`, `CapturePaneTitle`). This was the simplest approach — no other project in the research (cmux, AoE, hive, agent-deck, claude-squad) uses type assertions for optional tmux capabilities. Every concrete implementor needs both methods.
 
 Things that are no longer current issues and should not be re-raised as if unfixed:
 
@@ -272,20 +287,27 @@ If picking up from here, the best order is:
    - The code and docs still do not fully agree.
    - This decision should drive whether `internal/worktree/` is the next architectural layer or whether the docs/product language should narrow.
 
-2. **Continue status-system hardening while the surface is still small**
+2. **Hook-based detection for Claude Code (Option B from the research)**
+   - Use Claude's native `settings.json` hooks to write status to a file (`/tmp/colosseum-hooks/<workspace-id>/status`).
+   - Hook events: `PreToolUse` → running, `UserPromptSubmit` → running, `Stop` → idle, `Notification` (matcher: `permission_prompt|elicitation_dialog`) → waiting.
+   - Read the status file in the poller before falling back to pane scraping.
+   - Add a 5-minute staleness threshold (as agent-of-empires does).
+   - This gives 100% accurate status for Claude with zero regex fragility. Keep pane scraping as fallback for Codex and unconfigured Claude instances.
+
+3. **Continue status-system hardening while the surface is still small**
    - Consolidate the split refresh paths.
    - Tighten waiting semantics further if false positives remain.
    - Add a lightweight fixture-capture workflow for current agent panes before more CLIs drift.
 
-3. **Implement notifications and unread-count plumbing**
+4. **Implement notifications and unread-count plumbing**
    - The model already exposes `UnreadCount`.
    - Poller updates are already available.
    - This is the next clean layer after the recent status hardening.
 
-4. **Implement restart/stop first among the unavailable TUI actions**
+5. **Implement restart/stop first among the unavailable TUI actions**
    - These are simpler than broadcast/diff/rename/filter and would convert placeholders into genuinely useful operational controls.
 
-5. **Add config loading**
+6. **Add config loading**
    - Poll interval, default agent, default layout, and theme selection are the obvious first values.
 
 ---
@@ -298,6 +320,7 @@ If picking up from here, the best order is:
 - Live status refresh helper: `internal/status/refresh.go`
 - Poller and updates: `internal/status/poller.go`
 - Detection heuristics: `internal/status/detector.go`
+- ANSI normalization: `internal/status/normalize.go`
 - Agent definitions: `internal/agent/*.go`
 - TUI root app: `internal/tui/app.go`
 - New workspace dialog: `internal/tui/dialog/new_workspace.go`
