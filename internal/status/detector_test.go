@@ -155,6 +155,16 @@ func TestDetectFromContent_PromptWithExplicitChoiceStillWaits(t *testing.T) {
 	}
 }
 
+func TestDetectFromContent_PromptWithApprovalQuestionWaits(t *testing.T) {
+	def, _ := agent.Get(agent.Claude)
+
+	content := "Do you want to allow this?\n\n>"
+	got := DetectFromContent(content, def)
+	if got != agent.StatusWaiting {
+		t.Errorf("approval question prompt should be Waiting, got %s", got)
+	}
+}
+
 func TestDetectFromContent_StatusBarFiltered(t *testing.T) {
 	def, _ := agent.Get(agent.Claude)
 
