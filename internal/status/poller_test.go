@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -10,16 +11,27 @@ import (
 )
 
 type mockCapturer struct {
+	mu      sync.Mutex
 	content string
 	title   string
 	err     error
 }
 
+func (m *mockCapturer) SetContent(content string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.content = content
+}
+
 func (m *mockCapturer) CapturePane(_ context.Context, _ string, _ int) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.content, m.err
 }
 
 func (m *mockCapturer) CapturePaneTitle(_ context.Context, _ string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.title, nil
 }
 
@@ -123,7 +135,7 @@ func TestPollerStatusTransition(t *testing.T) {
 	}
 
 	// Change capturer content to idle
-	capturer.content = ">\n"
+	capturer.SetContent(">\n")
 
 	// Second update: Working -> Idle
 	update = <-poller.Updates()
@@ -189,7 +201,7 @@ func TestPollerSpikeWindowDelaysNonUrgentTransition(t *testing.T) {
 	}
 
 	// Switch to Idle — non-urgent, should be delayed by spike window.
-	capturer.content = ">\n"
+	capturer.SetContent(">\n")
 	transitionTime := time.Now()
 
 	update = <-poller.Updates()
@@ -225,7 +237,7 @@ func TestPollerUrgentStatusBypassesSpikeWindow(t *testing.T) {
 	<-poller.Updates()
 
 	// Switch to Waiting (urgent) — should bypass the 5s spike window.
-	capturer.content = "Do you want to allow this?\n\n>"
+	capturer.SetContent("Do you want to allow this?\n\n>")
 
 	update := <-poller.Updates()
 	if update.Current != agent.StatusWaiting {
