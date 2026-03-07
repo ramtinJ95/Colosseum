@@ -1,0 +1,92 @@
+package tui
+
+import (
+	"context"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/ramtinj/colosseum/internal/agent"
+	"github.com/ramtinj/colosseum/internal/status"
+	"github.com/ramtinj/colosseum/internal/workspace"
+)
+
+type appTestCapturer struct {
+	content string
+}
+
+func (c *appTestCapturer) CapturePane(_ context.Context, _ string, _ int) (string, error) {
+	return c.content, nil
+}
+
+func TestPreviewRefreshMsgUpdatesSelectedPane(t *testing.T) {
+	capturer := &appTestCapturer{content: "first output"}
+	detector := status.NewDetector(capturer, 50)
+
+	app := NewApp(nil, nil, nil, detector)
+	app.preview.SetSize(80, 20)
+	app.sidebar.SetWorkspaces([]workspace.Workspace{{
+		ID:        "ws-1",
+		Title:     "test",
+		AgentType: agent.Codex,
+		PaneTargets: map[string]string{
+			"agent": "%1",
+		},
+	}})
+	app.updatePreviewContent()
+
+	capturer.content = "second output"
+
+	model, cmd := app.Update(previewRefreshMsg(time.Now()))
+	updated := model.(App)
+
+	if got := updated.preview.View(); !strings.Contains(got, "second output") {
+		t.Fatalf("preview view = %q, want to contain %q", got, "second output")
+	}
+	if cmd == nil {
+		t.Fatal("expected refresh to resubscribe with another command")
+	}
+}
+
+func TestPreviewRefreshMsgSkipsRefreshOutsideNormalView(t *testing.T) {
+	capturer := &appTestCapturer{content: "initial output"}
+	detector := status.NewDetector(capturer, 50)
+
+	app := NewApp(nil, nil, nil, detector)
+	app.preview.SetSize(80, 20)
+	app.sidebar.SetWorkspaces([]workspace.Workspace{{
+		ID:        "ws-1",
+		Title:     "test",
+		AgentType: agent.Codex,
+		PaneTargets: map[string]string{
+			"agent": "%1",
+		},
+	}})
+	app.updatePreviewContent()
+	app.state = viewHelp
+
+	capturer.content = "changed output"
+
+	model, cmd := app.Update(previewRefreshMsg(time.Now()))
+	updated := model.(App)
+
+	if got := updated.preview.View(); !strings.Contains(got, "initial output") {
+		t.Fatalf("preview view = %q, want to contain %q", got, "initial output")
+	}
+	if cmd == nil {
+		t.Fatal("expected refresh loop to continue while dialog is open")
+	}
+}
+
+func TestSchedulePreviewRefreshReturnsTickCommand(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil)
+	cmd := app.schedulePreviewRefresh()
+	if cmd == nil {
+		t.Fatal("expected non-nil refresh command")
+	}
+	if msg := cmd(); msg == nil {
+		t.Fatal("expected tick command to emit a message")
+	} else if _, ok := msg.(previewRefreshMsg); !ok {
+		t.Fatalf("message type = %T, want previewRefreshMsg", msg)
+	}
+}

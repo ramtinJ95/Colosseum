@@ -1,0 +1,7 @@
+  Hi. What do you want to work on in Colosseum?
+
+  › what is this projet about would you say
+
+  • Working (10s • esc to interrupt)
+
+  ~/personal-workspace/Colosseum • gpt-5.4 high • 98% left • 17.7K used
