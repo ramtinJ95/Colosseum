@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -33,8 +34,11 @@ type errMsg struct{ err error }
 type workspaceCreatedMsg struct{ ws *workspace.Workspace }
 
 type workspaceDeletedMsg struct{ id string }
+type previewRefreshMsg time.Time
 
 var paneOrder = []string{"agent", "shell", "logs"}
+
+const previewRefreshInterval = 750 * time.Millisecond
 
 type App struct {
 	state          viewState
@@ -73,6 +77,7 @@ func (a App) Init() tea.Cmd {
 	return tea.Batch(
 		a.loadWorkspaces,
 		a.listenForUpdates(),
+		a.schedulePreviewRefresh(),
 	)
 }
 
@@ -108,6 +113,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		cmds = append(cmds, a.listenForUpdates())
+		return a, tea.Batch(cmds...)
+
+	case previewRefreshMsg:
+		if a.state == viewNormal {
+			a.updatePreviewContent()
+		}
+		cmds = append(cmds, a.schedulePreviewRefresh())
 		return a, tea.Batch(cmds...)
 
 	case workspaceCreatedMsg:
@@ -416,6 +428,12 @@ func (a App) listenForUpdates() tea.Cmd {
 		}
 		return StatusUpdateMsg(update)
 	}
+}
+
+func (a App) schedulePreviewRefresh() tea.Cmd {
+	return tea.Tick(previewRefreshInterval, func(t time.Time) tea.Msg {
+		return previewRefreshMsg(t)
+	})
 }
 
 type workspacesLoadedMsg struct {
