@@ -9,30 +9,60 @@ import (
 	"github.com/ramtinj/colosseum/internal/workspace"
 )
 
+const (
+	defaultSpikeWindow      = 1 * time.Second
+	defaultHysteresisWindow = 500 * time.Millisecond
+)
+
 type WorkspaceProvider interface {
 	List() ([]workspace.Workspace, error)
 }
 
-type Poller struct {
-	detector *Detector
-	provider WorkspaceProvider
-	interval time.Duration
-	updates  chan Update
-	statuses map[string]agent.Status
-	mu       sync.RWMutex
+type workspaceState struct {
+	confirmed    agent.Status
+	confirmedAt  time.Time
+	pending      agent.Status
+	pendingFirst time.Time
 }
 
-func NewPoller(detector *Detector, provider WorkspaceProvider, interval time.Duration) *Poller {
+type PollerOption func(*Poller)
+
+func WithSpikeWindow(d time.Duration) PollerOption {
+	return func(p *Poller) { p.spikeWindow = d }
+}
+
+func WithHysteresisWindow(d time.Duration) PollerOption {
+	return func(p *Poller) { p.hysteresisWindow = d }
+}
+
+type Poller struct {
+	detector         *Detector
+	provider         WorkspaceProvider
+	interval         time.Duration
+	spikeWindow      time.Duration
+	hysteresisWindow time.Duration
+	updates          chan Update
+	states           map[string]*workspaceState
+	mu               sync.RWMutex
+}
+
+func NewPoller(detector *Detector, provider WorkspaceProvider, interval time.Duration, opts ...PollerOption) *Poller {
 	if interval <= 0 {
 		interval = 1500 * time.Millisecond
 	}
-	return &Poller{
-		detector: detector,
-		provider: provider,
-		interval: interval,
-		updates:  make(chan Update, 64),
-		statuses: make(map[string]agent.Status),
+	p := &Poller{
+		detector:         detector,
+		provider:         provider,
+		interval:         interval,
+		spikeWindow:      defaultSpikeWindow,
+		hysteresisWindow: defaultHysteresisWindow,
+		updates:          make(chan Update, 64),
+		states:           make(map[string]*workspaceState),
 	}
+	for _, opt := range opts {
+		opt(p)
+	}
+	return p
 }
 
 func (p *Poller) Updates() <-chan Update {
@@ -58,10 +88,13 @@ func (p *Poller) Run(ctx context.Context) {
 func (p *Poller) poll(ctx context.Context) {
 	workspaces, err := p.provider.List()
 	if err != nil {
+		now := time.Now()
 		p.mu.Lock()
-		for id, prev := range p.statuses {
-			if prev != agent.StatusStopped {
-				p.statuses[id] = agent.StatusStopped
+		for id, state := range p.states {
+			if state.confirmed != agent.StatusStopped {
+				prev := state.confirmed
+				state.confirmed = agent.StatusStopped
+				state.confirmedAt = now
 				select {
 				case p.updates <- Update{
 					WorkspaceID: id,
@@ -81,48 +114,99 @@ func (p *Poller) poll(ctx context.Context) {
 		activeIDs[ws.ID] = struct{}{}
 	}
 	p.mu.Lock()
-	for id := range p.statuses {
+	for id := range p.states {
 		if _, ok := activeIDs[id]; !ok {
-			delete(p.statuses, id)
+			delete(p.states, id)
 		}
 	}
 	p.mu.Unlock()
 
+	now := time.Now()
 	for _, ws := range workspaces {
 		agentPane, ok := ws.PaneTargets["agent"]
 		if !ok {
 			continue
 		}
 
-		current, content, err := p.detector.Detect(ctx, agentPane, ws.AgentType)
+		detected, content, err := p.detector.Detect(ctx, agentPane, ws.AgentType)
 		if err != nil {
-			current = agent.StatusStopped
+			detected = agent.StatusStopped
 		}
 
-		p.mu.RLock()
-		previous := p.statuses[ws.ID]
-		p.mu.RUnlock()
+		p.mu.Lock()
+		state, exists := p.states[ws.ID]
+		if !exists {
+			state = &workspaceState{}
+			p.states[ws.ID] = state
+		}
 
-		if current != previous {
-			p.mu.Lock()
-			p.statuses[ws.ID] = current
+		if p.shouldTransition(state, detected, now) {
+			previous := state.confirmed
+			state.confirmed = detected
+			state.confirmedAt = now
+			state.pending = 0
+			state.pendingFirst = time.Time{}
 			p.mu.Unlock()
 
 			select {
 			case p.updates <- Update{
 				WorkspaceID: ws.ID,
 				Previous:    previous,
-				Current:     current,
+				Current:     detected,
 				PaneContent: content,
 			}:
 			default:
 			}
+		} else {
+			p.mu.Unlock()
 		}
 	}
+}
+
+// shouldTransition applies spike detection and hysteresis filtering to
+// prevent status flicker from transient terminal content (spinner
+// animations, dynamic counters). Urgent statuses (Waiting, Error,
+// Stopped) and initial detection bypass filtering entirely.
+func (p *Poller) shouldTransition(state *workspaceState, detected agent.Status, now time.Time) bool {
+	if detected == state.confirmed {
+		state.pending = 0
+		state.pendingFirst = time.Time{}
+		return false
+	}
+
+	// Immediate transitions: urgent states and first detection.
+	if isUrgentStatus(detected) || state.confirmed == agent.StatusUnknown {
+		return true
+	}
+
+	// Track the candidate state.
+	if detected != state.pending {
+		state.pending = detected
+		state.pendingFirst = now
+	}
+
+	// Spike window: new state must be sustained.
+	if p.spikeWindow > 0 && now.Sub(state.pendingFirst) < p.spikeWindow {
+		return false
+	}
+
+	// Hysteresis: current state must have been held long enough.
+	if p.hysteresisWindow > 0 && now.Sub(state.confirmedAt) < p.hysteresisWindow {
+		return false
+	}
+
+	return true
+}
+
+func isUrgentStatus(s agent.Status) bool {
+	return s == agent.StatusWaiting || s == agent.StatusError || s == agent.StatusStopped
 }
 
 func (p *Poller) CurrentStatus(workspaceID string) agent.Status {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return p.statuses[workspaceID]
+	if state, ok := p.states[workspaceID]; ok {
+		return state.confirmed
+	}
+	return agent.StatusUnknown
 }

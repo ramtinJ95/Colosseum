@@ -19,6 +19,10 @@ func (c *appTestCapturer) CapturePane(_ context.Context, _ string, _ int) (strin
 	return c.content, nil
 }
 
+func (c *appTestCapturer) CapturePaneTitle(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
+
 func TestPreviewRefreshMsgUpdatesSelectedPane(t *testing.T) {
 	capturer := &appTestCapturer{content: "first output"}
 	detector := status.NewDetector(capturer, 50)

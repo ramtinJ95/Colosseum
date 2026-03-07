@@ -43,6 +43,16 @@ func (c *Client) CapturePane(ctx context.Context, target string, lines int) (str
 	return output, nil
 }
 
+func (c *Client) CapturePaneTitle(ctx context.Context, target string) (string, error) {
+	output, err := c.Commander.Run(ctx,
+		"display-message", "-t", target, "-p", "#{pane_title}",
+	)
+	if err != nil {
+		return "", fmt.Errorf("capture pane title %q: %w", target, err)
+	}
+	return output, nil
+}
+
 func (c *Client) SendKeys(ctx context.Context, target string, keys string) error {
 	if _, err := c.Commander.Run(ctx, "send-keys", "-t", target, "-l", keys); err != nil {
 		return fmt.Errorf("send keys to %q: %w", target, err)

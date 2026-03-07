@@ -9,8 +9,11 @@ import (
 	"github.com/ramtinj/colosseum/internal/agent"
 )
 
+var brailleRange = regexp.MustCompile(`[\x{2800}-\x{28FF}]`)
+
 type PaneCapturer interface {
 	CapturePane(ctx context.Context, target string, lines int) (string, error)
+	CapturePaneTitle(ctx context.Context, target string) (string, error)
 }
 
 type Detector struct {
@@ -39,17 +42,29 @@ func (d *Detector) Detect(ctx context.Context, paneTarget string, agentType agen
 		return agent.StatusUnknown, content, fmt.Errorf("unknown agent type: %s", agentType)
 	}
 
-	return DetectFromContent(content, def), content, nil
+	status := DetectFromContent(content, def)
+
+	// Pane title is a supplementary working signal: Claude Code sets braille
+	// spinner characters in the tmux pane title while actively processing.
+	// Only upgrade Idle/Unknown — never override Waiting/Error.
+	if status == agent.StatusIdle || status == agent.StatusUnknown {
+		if title, err := d.capturer.CapturePaneTitle(ctx, paneTarget); err == nil && titleIndicatesWorking(title) {
+			status = agent.StatusWorking
+		}
+	}
+
+	return status, content, nil
 }
 
 func DetectFromContent(content string, def *agent.AgentDef) agent.Status {
+	content = StripANSI(content)
 	lines := strings.Split(content, "\n")
 
 	// Filter out lines matching agent-specific ignore patterns (e.g. status bars)
 	// before running detection, so UI chrome doesn't trigger false matches.
 	filtered := filterIgnored(lines, def.IgnorePatterns)
 
-	lastNonEmpty := lastNonEmptyLines(filtered, 10)
+	lastNonEmpty := lastNonEmptyLines(filtered, 30)
 
 	// Check only the very last non-empty line for idle indicators.
 	// A prompt at the bottom means the agent is idle, regardless of
@@ -139,6 +154,10 @@ func matchesAnyLine(lines []string, patterns []*regexp.Regexp) bool {
 		}
 	}
 	return false
+}
+
+func titleIndicatesWorking(title string) bool {
+	return brailleRange.MatchString(title)
 }
 
 func filterIgnored(lines []string, patterns []*regexp.Regexp) []string {

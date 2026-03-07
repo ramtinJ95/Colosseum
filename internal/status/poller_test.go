@@ -11,11 +11,16 @@ import (
 
 type mockCapturer struct {
 	content string
+	title   string
 	err     error
 }
 
 func (m *mockCapturer) CapturePane(_ context.Context, _ string, _ int) (string, error) {
 	return m.content, m.err
+}
+
+func (m *mockCapturer) CapturePaneTitle(_ context.Context, _ string) (string, error) {
+	return m.title, nil
 }
 
 type mockProvider struct {
@@ -38,7 +43,7 @@ func TestPollerDetectsStatusChange(t *testing.T) {
 		},
 	}
 	provider := &mockProvider{workspaces: []workspace.Workspace{ws}}
-	poller := NewPoller(detector, provider, 50*time.Millisecond)
+	poller := NewPoller(detector, provider, 50*time.Millisecond, WithSpikeWindow(0), WithHysteresisWindow(0))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -73,7 +78,7 @@ func TestPollerNoUpdateWhenStatusUnchanged(t *testing.T) {
 		},
 	}
 	provider := &mockProvider{workspaces: []workspace.Workspace{ws}}
-	poller := NewPoller(detector, provider, 50*time.Millisecond)
+	poller := NewPoller(detector, provider, 50*time.Millisecond, WithSpikeWindow(0), WithHysteresisWindow(0))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
@@ -104,7 +109,7 @@ func TestPollerStatusTransition(t *testing.T) {
 		},
 	}
 	provider := &mockProvider{workspaces: []workspace.Workspace{ws}}
-	poller := NewPoller(detector, provider, 50*time.Millisecond)
+	poller := NewPoller(detector, provider, 50*time.Millisecond, WithSpikeWindow(0), WithHysteresisWindow(0))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
@@ -142,7 +147,7 @@ func TestPollerCurrentStatus(t *testing.T) {
 		},
 	}
 	provider := &mockProvider{workspaces: []workspace.Workspace{ws}}
-	poller := NewPoller(detector, provider, 50*time.Millisecond)
+	poller := NewPoller(detector, provider, 50*time.Millisecond, WithSpikeWindow(0), WithHysteresisWindow(0))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -154,6 +159,105 @@ func TestPollerCurrentStatus(t *testing.T) {
 	got := poller.CurrentStatus("ws-1")
 	if got != agent.StatusWorking {
 		t.Errorf("CurrentStatus: got %s, want Working", got)
+	}
+}
+
+func TestPollerSpikeWindowDelaysNonUrgentTransition(t *testing.T) {
+	capturer := &mockCapturer{content: "⠹ Working (esc to interrupt)"}
+	detector := NewDetector(capturer, 50)
+
+	ws := workspace.Workspace{
+		ID:        "ws-1",
+		AgentType: agent.Claude,
+		PaneTargets: map[string]string{
+			"agent": "%0",
+		},
+	}
+	provider := &mockProvider{workspaces: []workspace.Workspace{ws}}
+	// Short spike window so the test doesn't take long, but enough to require multiple polls.
+	poller := NewPoller(detector, provider, 50*time.Millisecond, WithSpikeWindow(200*time.Millisecond), WithHysteresisWindow(0))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	go poller.Run(ctx)
+
+	// Initial detection (Unknown → Working) is immediate.
+	update := <-poller.Updates()
+	if update.Current != agent.StatusWorking {
+		t.Fatalf("initial: got %s, want Working", update.Current)
+	}
+
+	// Switch to Idle — non-urgent, should be delayed by spike window.
+	capturer.content = ">\n"
+	transitionTime := time.Now()
+
+	update = <-poller.Updates()
+	elapsed := time.Since(transitionTime)
+	if update.Current != agent.StatusIdle {
+		t.Fatalf("transition: got %s, want Idle", update.Current)
+	}
+	if elapsed < 150*time.Millisecond {
+		t.Errorf("spike window should delay transition, but it took only %v", elapsed)
+	}
+}
+
+func TestPollerUrgentStatusBypassesSpikeWindow(t *testing.T) {
+	capturer := &mockCapturer{content: "⠹ Working (esc to interrupt)"}
+	detector := NewDetector(capturer, 50)
+
+	ws := workspace.Workspace{
+		ID:        "ws-1",
+		AgentType: agent.Claude,
+		PaneTargets: map[string]string{
+			"agent": "%0",
+		},
+	}
+	provider := &mockProvider{workspaces: []workspace.Workspace{ws}}
+	poller := NewPoller(detector, provider, 50*time.Millisecond, WithSpikeWindow(5*time.Second), WithHysteresisWindow(0))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	go poller.Run(ctx)
+
+	// Initial detection.
+	<-poller.Updates()
+
+	// Switch to Waiting (urgent) — should bypass the 5s spike window.
+	capturer.content = "Do you want to allow this?\n\n>"
+
+	update := <-poller.Updates()
+	if update.Current != agent.StatusWaiting {
+		t.Fatalf("urgent transition: got %s, want Waiting", update.Current)
+	}
+}
+
+func TestPollerTitleDetectsWorking(t *testing.T) {
+	capturer := &mockCapturer{
+		content: ">\n",
+		title:   "⠹ claude",
+	}
+	detector := NewDetector(capturer, 50)
+
+	ws := workspace.Workspace{
+		ID:        "ws-1",
+		AgentType: agent.Claude,
+		PaneTargets: map[string]string{
+			"agent": "%0",
+		},
+	}
+	provider := &mockProvider{workspaces: []workspace.Workspace{ws}}
+	poller := NewPoller(detector, provider, 50*time.Millisecond, WithSpikeWindow(0), WithHysteresisWindow(0))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	go poller.Run(ctx)
+
+	update := <-poller.Updates()
+	if update.Current != agent.StatusWorking {
+		t.Errorf("title braille should upgrade idle to Working, got %s", update.Current)
 	}
 }
 

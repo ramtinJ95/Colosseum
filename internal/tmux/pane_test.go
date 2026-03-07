@@ -60,6 +60,22 @@ func TestCapturePane(t *testing.T) {
 	assertArgs(t, mock.Calls[0].Args, expected)
 }
 
+func TestCapturePaneTitle(t *testing.T) {
+	mock := NewMockCommander(MockResponse{Output: "⠹ claude", Err: nil})
+	client := NewClient(mock)
+
+	title, err := client.CapturePaneTitle(context.Background(), "%3")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if title != "⠹ claude" {
+		t.Errorf("expected title %q, got %q", "⠹ claude", title)
+	}
+
+	expected := []string{"display-message", "-t", "%3", "-p", "#{pane_title}"}
+	assertArgs(t, mock.Calls[0].Args, expected)
+}
+
 func TestSendKeys(t *testing.T) {
 	mock := NewMockCommander(
 		MockResponse{Output: "", Err: nil},
