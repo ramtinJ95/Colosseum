@@ -96,11 +96,13 @@ func TestDetectFromContent_IdleOverridesOlderContent(t *testing.T) {
 func TestDetectFromContent_IdleBottomPriority(t *testing.T) {
 	def, _ := agent.Get(agent.Claude)
 
-	// Working keywords in old output, but prompt at the bottom.
-	content := "⠹ Reading file (esc to interrupt)\n\nDone! Here are the results.\n\n>"
+	// Prose about work in old output, but prompt at the bottom. Claude's
+	// actual working indicators (esc to interrupt, spinners) are ephemeral
+	// and get replaced on completion, so they won't appear above a prompt.
+	content := "I finished reading the configuration files.\n\nDone! Here are the results.\n\n>"
 	got := DetectFromContent(content, def)
 	if got != agent.StatusIdle {
-		t.Errorf("idle prompt at bottom should win over working in older lines, got %s", got)
+		t.Errorf("idle prompt at bottom should win over old prose, got %s", got)
 	}
 }
 

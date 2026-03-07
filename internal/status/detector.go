@@ -82,9 +82,11 @@ func DetectFromContent(content string, def *agent.AgentDef) agent.Status {
 	if matchesAnyLine(bottom, def.IdlePatterns) {
 		recent := linesBeforeBottom(lastNonEmpty, 3)
 
-		// If the agent is visibly still running on the line right above the
-		// prompt/helper line, keep it in Working rather than flickering back.
-		if matchesAnyLine(linesBeforeBottom(lastNonEmpty, 1), def.WorkingPatterns) {
+		// If the agent is visibly still running in the lines above the
+		// prompt, keep it in Working. Check 5 lines because Claude's
+		// thinking indicators can be several lines above the prompt
+		// (separated by progress bars and decorative lines).
+		if matchesAny(linesBeforeBottom(lastNonEmpty, 5), def.WorkingPatterns) {
 			return agent.StatusWorking
 		}
 
