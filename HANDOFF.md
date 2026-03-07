@@ -17,28 +17,26 @@ Colosseum is a Go + tmux + Bubble Tea workspace manager for running AI coding ag
 - A shell-style path-completion flow in the new-workspace dialog
 - Config-driven theme propagation across the sidebar, preview, dialogs, and shared app styling
 - Config-driven sidebar navigation instead of hardcoded `j/k`
-- In-memory status transition notifications with unread badges that clear when a workspace is selected
 - A deterministic tmux return path from attached workspaces back to the dashboard session that launched Colosseum
-- A still-unimplemented roadmap for worktrees, desktop notifications, and diffing
+- A still-unimplemented roadmap for worktrees and diffing
 
 ### Repo Metrics
 
 | Metric | Value |
 |--------|-------|
-| Go source files under `cmd/` + `internal/` | 46 |
-| Test files | 20 |
-| Test functions | 101 |
-| Go packages under `cmd/` + `internal/` | 12 |
+| Go source files under `cmd/` + `internal/` | 45 |
+| Test files | 19 |
+| Test functions | 95 |
+| Go packages under `cmd/` + `internal/` | 11 |
 | CLI subcommands | 5 (`new`, `list`, `attach`, `broadcast`, `delete`) |
 | Fixture files | 35 files |
 
 ### Recent Changes Since The Previous Handoff
 
-**Broadcast, notification, and fixture coverage expansion (2026-03-07)** — three previously missing dashboard-facing slices now exist:
+**Broadcast command and fixture coverage validation (2026-03-07)** — two stale gaps were rechecked against the live tree and documented correctly:
 
 1. `colosseum broadcast --prompt <text> --workspaces <w1,w2,...>` now routes through the same workspace broadcast manager path the TUI dialog already used.
-2. Poller status transitions now feed an in-memory `internal/notification` store, background urgent/completion transitions increment `UnreadCount`, and selecting a workspace clears its unread badge.
-3. `testdata/fixtures/` now includes dedicated OpenCode and Aider `working` / `waiting` / `idle` / `error` samples, and the shared detector fixture matrix exercises them.
+2. `testdata/fixtures/` already contains dedicated OpenCode and Aider `working` / `waiting` / `idle` / `error` samples, and the shared detector fixture matrix already exercises them.
 
 **Session identity unification (2026-03-07)** — tmux lifecycle calls now use the persisted workspace session name as the single authority:
 
@@ -125,7 +123,6 @@ The binary can currently:
 - Preview agent, shell, or logs panes inside the dashboard
 - Offer shell-style path completion in the new-workspace dialog
 - Apply config-driven poll/capture settings, UI sizing, tmux behavior, keybindings, and theme colors
-- Track in-memory status notifications and unread badges for background transitions
 
 The current supported agent surface for new workspaces is:
 
@@ -200,16 +197,6 @@ The “legacy definition still registered” detail matters because existing sav
 | Broadcast worktrees | **Not Started** | No orchestration exists. |
 | Diff viewer against base branch | **Not Started** | No diff computation package exists. |
 
-### Notification System
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Notification store | **Done** | `internal/notification/` now tracks in-memory status-transition entries. |
-| Per-workspace unread counts | **Done** | Background notifications increment `UnreadCount`, and selecting a workspace clears it. |
-| Status transition notifications | **Done** | Poller updates now create notification entries for Waiting/Idle/Error/Stopped transitions after startup. |
-| Desktop notifications | **Not Started** | No `notify-send` integration. |
-| Claude hook integration | **Not Started** | No `internal/hook/` package exists. |
-
 ### Broadcast Prompt
 
 | Feature | Status | Notes |
@@ -271,7 +258,7 @@ The “legacy definition still registered” detail matters because existing sav
 | `keys.diff` | Diff viewer | **Unavailable** | Default is `D`; same behavior. |
 | `keys.rename` | Rename workspace | **Unavailable** | Default is `r`; same behavior. |
 | `keys.filter` | Filter/search workspaces | **Unavailable** | Default is `/`; same behavior. |
-| `keys.mark_read` | Mark notifications read | **Unavailable** | Default is `m`; same behavior. |
+| `keys.mark_read` | Reserved / unused | **Unavailable** | Default is `m`; there is currently no shipped action behind it. |
 | `keys.restart` | Restart agent | **Unavailable** | Default is `R`; same behavior. |
 | `keys.stop` | Stop agent | **Unavailable** | Default is `s`; same behavior. |
 
@@ -288,22 +275,20 @@ The “legacy definition still registered” detail matters because existing sav
 | Config-driven keybindings | **Done** | `keys.*` now drive app actions, dialog navigation, rendered help text, the sidebar empty-state hint, and the preview tab hint. |
 | Config-driven theme colors | **Done** | `theme.*` now affects the sidebar, preview, dialogs, and shared app styling. |
 | Config-driven worktree settings | **Not Started** | Not implemented. |
-| Config-driven notification settings | **Not Started** | Not implemented. |
 | Config validation for duplicate key conflicts | **Done** | Config load now rejects conflicting key assignments before the TUI can shadow one action with another. |
 
 ---
 
 ## Known Issues And Important Gaps
 
-1. Notification entries are still in-memory only. There is no notification list in the TUI, no persisted notification history, and no desktop delivery yet.
-2. YOLO flags exist in agent definitions, but there is still no code path that uses them.
-3. The roadmap features are still absent: worktrees, desktop notifications, diffing, restart/stop behavior, and rename/filter/mark-read flows.
-4. The project vision still references git worktrees, but the actual create path still just launches tmux sessions in an existing directory and stores branch metadata.
-5. The intentional supported create surface is `claude`, `codex`, and `opencode`, with legacy definitions for Gemini and Aider still registered.
-6. Status detection is materially better after the 2026-03-07 hardening (ANSI stripping, tiered windows, spike/hysteresis, pane title signal), but it is still fundamentally heuristic and regex-driven. The most impactful next step would be **hook-based detection for Claude Code** — using Claude's native `settings.json` hooks (`PreToolUse`, `UserPromptSubmit`, `Stop`, `Notification`) to have Claude write its own state to a file, like agent-of-empires and cmux do. This eliminates the regex arms race entirely for Claude. See the research notes in the 2026-03-07 session for detailed implementation patterns from both projects.
-7. “Waiting” semantics are still only partially semantic. The current rule is stricter now, but there is still no protocol-level signal that cleanly separates “assistant asked a question in prose” from “assistant is truly blocked on user input.”
-8. The app still has two status-update authorities: the background poller and the direct refresh call used during initial TUI load. This is workable now, but still worth consolidating before larger event flows are added.
-9. The `PaneCapturer` interface now has two methods (`CapturePane`, `CapturePaneTitle`). This was the simplest approach — no other project in the research (cmux, AoE, hive, agent-deck, claude-squad) uses type assertions for optional tmux capabilities. Every concrete implementor needs both methods.
+1. YOLO flags exist in agent definitions, but there is still no code path that uses them.
+2. The roadmap features are still absent: worktrees, diffing, restart/stop behavior, and rename/filter flows.
+3. The project vision still references git worktrees, but the actual create path still just launches tmux sessions in an existing directory and stores branch metadata.
+4. The intentional supported create surface is `claude`, `codex`, and `opencode`, with legacy definitions for Gemini and Aider still registered.
+5. Status detection is materially better after the 2026-03-07 hardening (ANSI stripping, tiered windows, spike/hysteresis, pane title signal), but it is still fundamentally heuristic and regex-driven. The most impactful next step would be **hook-based detection for Claude Code** — using Claude's native `settings.json` hooks (`PreToolUse`, `UserPromptSubmit`, `Stop`, `Notification`) to have Claude write its own state to a file, like agent-of-empires and cmux do. This eliminates the regex arms race entirely for Claude. See the research notes in the 2026-03-07 session for detailed implementation patterns from both projects.
+6. “Waiting” semantics are still only partially semantic. The current rule is stricter now, but there is still no protocol-level signal that cleanly separates “assistant asked a question in prose” from “assistant is truly blocked on user input.”
+7. The app still has two status-update authorities: the background poller and the direct refresh call used during initial TUI load. This is workable now, but still worth consolidating before larger event flows are added.
+8. The `PaneCapturer` interface now has two methods (`CapturePane`, `CapturePaneTitle`). This was the simplest approach — no other project in the research (cmux, AoE, hive, agent-deck, claude-squad) uses type assertions for optional tmux capabilities. Every concrete implementor needs both methods.
 
 Things that are no longer current issues and should not be re-raised as if unfixed:
 
@@ -339,14 +324,10 @@ If picking up from here, the best order is:
    - Tighten waiting semantics further if false positives remain.
    - Keep using the fixture-capture workflow in `scripts/capture_fixture.sh` before releases so current pane samples do not drift silently.
 
-4. **Expose the new notification data somewhere user-visible**
-   - There is now an in-memory notification store and unread badge plumbing.
-   - The next step is either a sidebar notification list, a mark-read flow, or desktop notifications.
-
-5. **Implement restart/stop first among the unavailable TUI actions**
+4. **Implement restart/stop first among the unavailable TUI actions**
    - These are simpler than broadcast/diff/rename/filter and would convert placeholders into genuinely useful operational controls.
 
-6. **Finish the config UX instead of reopening the config plumbing**
+5. **Finish the config UX instead of reopening the config plumbing**
    - Generate help text from the effective configured keybindings.
    - Validate duplicate key conflicts at load time.
    - Consider a sample/default config file or `colosseum config init` flow once the surface stabilizes.
