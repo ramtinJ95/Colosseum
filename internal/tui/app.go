@@ -197,7 +197,7 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, a.keys.Enter):
 			if ws := a.sidebar.SelectedWorkspace(); ws != nil {
-				a.statusBar = fmt.Sprintf("Switched to %q — prefix+e returns to dashboard", ws.Title)
+				a.statusBar = fmt.Sprintf("Switched to %q - prefix+%s returns to dashboard", ws.Title, a.returnKey)
 				return a, a.switchToWorkspace(ws.ID)
 			}
 			return a, nil
