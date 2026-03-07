@@ -68,8 +68,8 @@ func TestBuiltinAgentsRegistered(t *testing.T) {
 }
 
 func TestSupported(t *testing.T) {
-	if got := Supported(); len(got) != 2 {
-		t.Fatalf("Supported() len = %d, want 2", len(got))
+	if got := Supported(); len(got) != 3 {
+		t.Fatalf("Supported() len = %d, want 3", len(got))
 	}
 
 	if !IsSupported(Claude) {
@@ -77,6 +77,9 @@ func TestSupported(t *testing.T) {
 	}
 	if !IsSupported(Codex) {
 		t.Fatal("expected codex to be supported")
+	}
+	if !IsSupported(OpenCode) {
+		t.Fatal("expected opencode to be supported")
 	}
 	if IsSupported(Gemini) {
 		t.Fatal("expected gemini to be unsupported")
