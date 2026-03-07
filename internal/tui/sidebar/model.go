@@ -1,8 +1,10 @@
 package sidebar
 
 import (
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ramtinj/colosseum/internal/agent"
+	"github.com/ramtinj/colosseum/internal/tui/theme"
 	"github.com/ramtinj/colosseum/internal/workspace"
 )
 
@@ -12,11 +14,15 @@ type Model struct {
 	Width      int
 	Height     int
 	Focused    bool
+	theme      theme.Theme
+	upKey      key.Binding
+	downKey    key.Binding
 }
 
 func New() Model {
 	return Model{
 		Focused: true,
+		theme:   theme.DefaultTheme(),
 	}
 }
 
@@ -30,18 +36,29 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		if !m.Focused {
 			return m, nil
 		}
-		switch msg.String() {
-		case "k":
+		switch {
+		case key.Matches(msg, m.upKey):
 			if m.Cursor > 0 {
 				m.Cursor--
 			}
-		case "j":
+		case key.Matches(msg, m.downKey):
 			if m.Cursor < len(m.Workspaces)-1 {
 				m.Cursor++
 			}
 		}
 	}
 	return m, nil
+}
+
+func (m Model) WithNavigationKeys(up, down key.Binding) Model {
+	m.upKey = up
+	m.downKey = down
+	return m
+}
+
+func (m Model) WithTheme(t theme.Theme) Model {
+	m.theme = t
+	return m
 }
 
 func (m Model) SelectedWorkspace() *workspace.Workspace {

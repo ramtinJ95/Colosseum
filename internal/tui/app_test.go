@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ramtinj/colosseum/internal/agent"
 	"github.com/ramtinj/colosseum/internal/config"
 	"github.com/ramtinj/colosseum/internal/status"
@@ -93,5 +94,29 @@ func TestSchedulePreviewRefreshReturnsTickCommand(t *testing.T) {
 		t.Fatal("expected tick command to emit a message")
 	} else if _, ok := msg.(previewRefreshMsg); !ok {
 		t.Fatalf("message type = %T, want previewRefreshMsg", msg)
+	}
+}
+
+func TestConfiguredSidebarKeysMoveSelection(t *testing.T) {
+	cfg := config.Default()
+	cfg.Keys.Up = "w"
+	cfg.Keys.Down = "x"
+
+	app := NewApp(nil, nil, nil, nil, cfg)
+	app.sidebar.SetWorkspaces([]workspace.Workspace{
+		{ID: "ws-1", Title: "one", AgentType: agent.Claude},
+		{ID: "ws-2", Title: "two", AgentType: agent.Codex},
+	})
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	updated := model.(App)
+	if updated.sidebar.Cursor != 1 {
+		t.Fatalf("cursor after configured down key = %d, want 1", updated.sidebar.Cursor)
+	}
+
+	model, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})
+	updated = model.(App)
+	if updated.sidebar.Cursor != 0 {
+		t.Fatalf("cursor after configured up key = %d, want 0", updated.sidebar.Cursor)
 	}
 }

@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/ramtinj/colosseum/internal/tui/theme"
 )
 
 func (m Model) View() string {
-	t := theme.DefaultTheme()
+	t := m.theme
 
 	title := t.PreviewTitle.Render(m.title)
 	if m.title == "" {
@@ -32,22 +31,12 @@ func (m Model) renderTabs(t theme.Theme) string {
 		return ""
 	}
 
-	activeStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("220")).
-		Background(lipgloss.Color("236")).
-		Padding(0, 1)
-
-	inactiveStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("245")).
-		Padding(0, 1)
-
 	var parts []string
 	for i, tab := range m.tabs {
 		if i == m.activeTab {
-			parts = append(parts, activeStyle.Render(fmt.Sprintf("[%s]", tab)))
+			parts = append(parts, t.ActiveTab.Render(fmt.Sprintf("[%s]", tab)))
 		} else {
-			parts = append(parts, inactiveStyle.Render(tab))
+			parts = append(parts, t.InactiveTab.Render(tab))
 		}
 	}
 

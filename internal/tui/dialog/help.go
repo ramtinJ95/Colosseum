@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/ramtinj/colosseum/internal/tui/theme"
 )
 
@@ -13,10 +12,11 @@ type HelpCloseMsg struct{}
 type HelpModel struct {
 	Width  int
 	Height int
+	theme  theme.Theme
 }
 
 func NewHelp() HelpModel {
-	return HelpModel{}
+	return HelpModel{theme: theme.DefaultTheme()}
 }
 
 func (m HelpModel) Update(msg tea.Msg) (HelpModel, tea.Cmd) {
@@ -31,7 +31,7 @@ func (m HelpModel) Update(msg tea.Msg) (HelpModel, tea.Cmd) {
 }
 
 func (m HelpModel) View() string {
-	t := theme.DefaultTheme()
+	t := m.theme
 
 	title := t.AppTitle.Render(" Keybindings")
 
@@ -75,11 +75,14 @@ func (m HelpModel) View() string {
 
 	content := title + "\n\n" + strings.Join(rows, "\n") + "\n\n" + t.Dim.Render("  Press esc or ? to close")
 
-	border := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62")).
+	border := t.DialogBorder.
 		Padding(1, 2).
 		Width(56)
 
 	return border.Render(content)
+}
+
+func (m HelpModel) WithTheme(t theme.Theme) HelpModel {
+	m.theme = t
+	return m
 }

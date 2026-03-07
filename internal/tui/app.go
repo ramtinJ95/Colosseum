@@ -40,34 +40,36 @@ type previewRefreshMsg time.Time
 var paneOrder = []string{"agent", "shell", "logs"}
 
 type App struct {
-	state              viewState
-	sidebar            sidebar.Model
-	preview            preview.Model
-	newDialog          dialog.NewWorkspaceModel
-	delDialog          dialog.DeleteModel
-	helpDialog         dialog.HelpModel
-	keys               KeyMap
-	theme              theme.Theme
-	store              *workspace.Store
-	manager            *workspace.Manager
-	poller             *status.Poller
-	detector           *status.Detector
+	state                  viewState
+	sidebar                sidebar.Model
+	preview                preview.Model
+	newDialog              dialog.NewWorkspaceModel
+	delDialog              dialog.DeleteModel
+	helpDialog             dialog.HelpModel
+	keys                   KeyMap
+	theme                  theme.Theme
+	store                  *workspace.Store
+	manager                *workspace.Manager
+	poller                 *status.Poller
+	detector               *status.Detector
 	previewRefreshInterval time.Duration
-	sidebarMinWidth    int
-	sidebarMaxWidth    int
-	focusedPaneIdx     int
-	statusBar          string
-	width              int
-	height             int
-	ready              bool
+	sidebarMinWidth        int
+	sidebarMaxWidth        int
+	focusedPaneIdx         int
+	statusBar              string
+	width                  int
+	height                 int
+	ready                  bool
 }
 
 func NewApp(store *workspace.Store, manager *workspace.Manager, poller *status.Poller, detector *status.Detector, cfg config.Config) App {
+	appTheme := theme.ThemeFromConfig(cfg.Theme)
+	keys := KeyMapFromConfig(cfg.Keys)
 	return App{
-		sidebar:                sidebar.New(),
-		preview:                preview.New(),
-		keys:                   KeyMapFromConfig(cfg.Keys),
-		theme:                  theme.ThemeFromConfig(cfg.Theme),
+		sidebar:                sidebar.New().WithTheme(appTheme).WithNavigationKeys(keys.Up, keys.Down),
+		preview:                preview.New().WithTheme(appTheme),
+		keys:                   keys,
+		theme:                  appTheme,
 		store:                  store,
 		manager:                manager,
 		poller:                 poller,
@@ -163,13 +165,13 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, a.keys.New):
 			a.state = viewNewWorkspace
-			a.newDialog = dialog.NewNewWorkspace()
+			a.newDialog = dialog.NewNewWorkspace().WithTheme(a.theme)
 			return a, a.newDialog.Init()
 
 		case key.Matches(msg, a.keys.Delete):
 			if ws := a.sidebar.SelectedWorkspace(); ws != nil {
 				a.state = viewDeleteConfirm
-				a.delDialog = dialog.NewDelete(ws.ID, ws.Title)
+				a.delDialog = dialog.NewDelete(ws.ID, ws.Title).WithTheme(a.theme)
 			}
 			return a, nil
 
@@ -182,7 +184,7 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, a.keys.Help):
 			a.state = viewHelp
-			a.helpDialog = dialog.NewHelp()
+			a.helpDialog = dialog.NewHelp().WithTheme(a.theme)
 			return a, nil
 
 		case key.Matches(msg, a.keys.JumpNext):

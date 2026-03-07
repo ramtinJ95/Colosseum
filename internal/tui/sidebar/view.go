@@ -9,7 +9,7 @@ import (
 )
 
 func (m Model) View() string {
-	t := theme.DefaultTheme()
+	t := m.theme
 
 	if len(m.Workspaces) == 0 {
 		empty := t.Dim.Render("  No workspaces yet.\n  Press 'n' to create one.")
@@ -63,7 +63,7 @@ func (m Model) View() string {
 }
 
 func (m Model) ShortHelp() string {
-	t := theme.DefaultTheme()
+	t := m.theme
 	help := []string{
 		t.HelpKey.Render("j/k") + t.HelpDesc.Render(" navigate"),
 		t.HelpKey.Render("h/l") + t.HelpDesc.Render(" pane"),
