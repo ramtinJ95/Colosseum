@@ -1,1 +1,4 @@
 # BACKLOG
+
+- Handle state-dir creation failures in the CLI bootstrap. [`cmd/colosseum/bootstrap.go`](/home/ramtinj/personal-workspace/Colosseum/cmd/colosseum/bootstrap.go) still calls `os.MkdirAll(dir, 0o755)` inside `newStore()` and ignores the returned error. If the config directory is unwritable, later store operations fail farther away from the cause and the CLI never reports the actual directory-creation problem.
+- Tighten Aider waiting detection before trusting it on live panes. [`internal/agent/aider.go`](/home/ramtinj/personal-workspace/Colosseum/internal/agent/aider.go) still treats any line ending in `?` as `Waiting`. That is broader than the recent Claude/Codex waiting hardening and will likely misclassify normal conversational output until Aider gets a narrower prompt/approval signal strategy.
