@@ -110,12 +110,15 @@ func TestManagerCreate(t *testing.T) {
 	if len(mock.createCalls) != 1 {
 		t.Fatalf("expected 1 create call, got %d", len(mock.createCalls))
 	}
-	if mock.createCalls[0].Name != "my-workspace" {
-		t.Errorf("expected create name %q, got %q", "my-workspace", mock.createCalls[0].Name)
+	if mock.createCalls[0].Name != "colo-my-workspace" {
+		t.Errorf("expected create name %q, got %q", "colo-my-workspace", mock.createCalls[0].Name)
 	}
 
 	if len(mock.splitCalls) != 1 {
 		t.Fatalf("expected 1 split call for agent-shell layout, got %d", len(mock.splitCalls))
+	}
+	if mock.splitCalls[0].Session != "colo-my-workspace" {
+		t.Errorf("expected split session %q, got %q", "colo-my-workspace", mock.splitCalls[0].Session)
 	}
 
 	if ws.PaneTargets["agent"] != "%0" {
@@ -159,8 +162,8 @@ func TestManagerDelete(t *testing.T) {
 	if len(mock.killCalls) != 1 {
 		t.Fatalf("expected 1 kill call, got %d", len(mock.killCalls))
 	}
-	if mock.killCalls[0] != "to-delete" {
-		t.Errorf("expected kill name %q, got %q", "to-delete", mock.killCalls[0])
+	if mock.killCalls[0] != "colo-to-delete" {
+		t.Errorf("expected kill name %q, got %q", "colo-to-delete", mock.killCalls[0])
 	}
 
 	remaining, err := store.List()
@@ -182,7 +185,7 @@ func TestManagerCreateRollsBackOnSplitError(t *testing.T) {
 		t.Fatal("expected create to fail")
 	}
 
-	if len(mock.killCalls) != 1 || mock.killCalls[0] != "broken" {
+	if len(mock.killCalls) != 1 || mock.killCalls[0] != "colo-broken" {
 		t.Fatalf("expected rollback kill for broken workspace, got %v", mock.killCalls)
 	}
 
@@ -205,7 +208,7 @@ func TestManagerCreateReturnsLaunchError(t *testing.T) {
 		t.Fatal("expected launch error")
 	}
 
-	if len(mock.killCalls) != 1 || mock.killCalls[0] != "launch-fail" {
+	if len(mock.killCalls) != 1 || mock.killCalls[0] != "colo-launch-fail" {
 		t.Fatalf("expected rollback kill for launch-fail workspace, got %v", mock.killCalls)
 	}
 }
@@ -275,6 +278,59 @@ func TestManagerList(t *testing.T) {
 	}
 	if len(workspaces) != 3 {
 		t.Errorf("expected 3 workspaces, got %d", len(workspaces))
+	}
+}
+
+func TestManagerSwitchToUsesStoredSessionName(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	mock := &mockSessionCreator{}
+	mgr := NewManager(store, mock, "colo-")
+
+	ws, err := mgr.Create(context.Background(), "switch-me", agent.Claude, "/tmp/project", "main", LayoutAgent)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if err := mgr.SwitchTo(context.Background(), ws.ID); err != nil {
+		t.Fatalf("SwitchTo: %v", err)
+	}
+
+	if len(mock.switchCalls) != 1 {
+		t.Fatalf("expected 1 switch call, got %d", len(mock.switchCalls))
+	}
+	if mock.switchCalls[0] != ws.SessionName {
+		t.Fatalf("switch target = %q, want %q", mock.switchCalls[0], ws.SessionName)
+	}
+}
+
+func TestManagerSwitchToFallsBackToPrefixedTitle(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	ws := Workspace{
+		ID:          "ws-1",
+		Title:       "legacy",
+		AgentType:   agent.Claude,
+		ProjectPath: "/tmp/project",
+		Layout:      LayoutAgent,
+		Status:      agent.StatusIdle,
+		PaneTargets: map[string]string{"agent": "%0"},
+	}
+	if err := store.Add(ws); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	mock := &mockSessionCreator{}
+	mgr := NewManager(store, mock, "colo-")
+	if err := mgr.SwitchTo(context.Background(), ws.ID); err != nil {
+		t.Fatalf("SwitchTo: %v", err)
+	}
+
+	if len(mock.switchCalls) != 1 {
+		t.Fatalf("expected 1 switch call, got %d", len(mock.switchCalls))
+	}
+	if mock.switchCalls[0] != "colo-legacy" {
+		t.Fatalf("switch target = %q, want %q", mock.switchCalls[0], "colo-legacy")
 	}
 }
 

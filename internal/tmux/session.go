@@ -25,7 +25,7 @@ func NewClient(cmdr Commander) *Client {
 
 func (c *Client) CreateSession(ctx context.Context, name string, startDir string) (string, error) {
 	format := BuildFormat(FormatPaneID)
-	output, err := c.Commander.Run(ctx, "new-session", "-d", "-s", c.fullName(name), "-c", startDir, "-P", "-F", format)
+	output, err := c.Commander.Run(ctx, "new-session", "-d", "-s", name, "-c", startDir, "-P", "-F", format)
 	if err != nil {
 		return "", fmt.Errorf("create session %q: %w", name, err)
 	}
@@ -33,7 +33,7 @@ func (c *Client) CreateSession(ctx context.Context, name string, startDir string
 }
 
 func (c *Client) KillSession(ctx context.Context, name string) error {
-	_, err := c.Commander.Run(ctx, "kill-session", "-t", c.fullName(name))
+	_, err := c.Commander.Run(ctx, "kill-session", "-t", name)
 	if err != nil {
 		return fmt.Errorf("kill session %q: %w", name, err)
 	}
@@ -41,7 +41,7 @@ func (c *Client) KillSession(ctx context.Context, name string) error {
 }
 
 func (c *Client) SessionExists(ctx context.Context, name string) bool {
-	_, err := c.Commander.Run(ctx, "has-session", "-t", c.fullName(name))
+	_, err := c.Commander.Run(ctx, "has-session", "-t", name)
 	return err == nil
 }
 
@@ -59,7 +59,7 @@ func (c *Client) ListSessions(ctx context.Context) ([]string, error) {
 	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, c.SessionPrefix) {
-			sessions = append(sessions, strings.TrimPrefix(line, c.SessionPrefix))
+			sessions = append(sessions, line)
 		}
 	}
 	return sessions, nil
@@ -83,7 +83,7 @@ func (c *Client) SwitchClient(ctx context.Context, name string) error {
 		return fmt.Errorf("bind dashboard return key: %w", err)
 	}
 
-	_, err = c.Commander.Run(ctx, "switch-client", "-t", c.fullName(name))
+	_, err = c.Commander.Run(ctx, "switch-client", "-t", name)
 	if err != nil {
 		return fmt.Errorf("switch client to %q: %w", name, err)
 	}
@@ -96,8 +96,4 @@ func (c *Client) currentSession(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("display current session: %w", err)
 	}
 	return strings.TrimSpace(output), nil
-}
-
-func (c *Client) fullName(name string) string {
-	return c.SessionPrefix + name
 }

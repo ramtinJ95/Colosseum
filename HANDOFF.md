@@ -33,6 +33,12 @@ Colosseum is a Go + tmux + Bubble Tea workspace manager for running AI coding ag
 
 ### Recent Changes Since The Previous Handoff
 
+**Session identity unification (2026-03-07)** — tmux lifecycle calls now use the persisted workspace session name as the single authority:
+
+1. Workspace creation still stores `SessionName` as `<prefix><title>`, but create/split/kill/switch now pass that exact value through instead of reconstructing it later from `Title`.
+2. `internal/tmux.Client` now treats session arguments as exact tmux session names and uses `SessionPrefix` only when filtering `ListSessions()`.
+3. Existing saved workspaces without `SessionName` still fall back to `<prefix><title>` during switch/delete so older JSON records keep working.
+
 **CLI surface split (2026-03-07)** — the Cobra entrypoint is no longer monolithic:
 
 1. `cmd/colosseum/main.go` now just executes the root command.
