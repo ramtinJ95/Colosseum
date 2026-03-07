@@ -11,13 +11,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ramtinj/colosseum/internal/agent"
+	"github.com/ramtinj/colosseum/internal/config"
 	"github.com/ramtinj/colosseum/internal/status"
 	"github.com/ramtinj/colosseum/internal/tmux"
 	"github.com/ramtinj/colosseum/internal/tui"
 	"github.com/ramtinj/colosseum/internal/workspace"
 )
-
-const sessionPrefix = "colo-"
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
@@ -64,13 +63,16 @@ var (
 	flagAgent  string
 	flagBranch string
 	flagLayout string
+	cfg        config.Config
 )
 
 func init() {
+	cfg, _ = config.Load(config.DefaultPath())
+
 	newCmd.Flags().StringVarP(&flagPath, "path", "p", ".", "project directory path")
-	newCmd.Flags().StringVarP(&flagAgent, "agent", "a", "claude", "agent type (claude, codex)")
+	newCmd.Flags().StringVarP(&flagAgent, "agent", "a", cfg.Defaults.Agent, "agent type (claude, codex)")
 	newCmd.Flags().StringVarP(&flagBranch, "branch", "b", "", "git branch name")
-	newCmd.Flags().StringVarP(&flagLayout, "layout", "l", "agent-shell", "pane layout (agent, agent-shell, agent-shell-logs)")
+	newCmd.Flags().StringVarP(&flagLayout, "layout", "l", cfg.Defaults.Layout, "pane layout (agent, agent-shell, agent-shell-logs)")
 
 	rootCmd.AddCommand(newCmd, listCmd, attachCmd, deleteCmd)
 }
@@ -90,23 +92,26 @@ func newStore() *workspace.Store {
 }
 
 func newTmuxClient() *tmux.Client {
-	return tmux.NewClient(tmux.NewExecCommander())
+	c := tmux.NewClient(tmux.NewExecCommander())
+	c.SessionPrefix = cfg.Tmux.SessionPrefix
+	c.ReturnKey = cfg.Tmux.ReturnKey
+	return c
 }
 
 func runDashboard(_ *cobra.Command, _ []string) error {
 	store := newStore()
 	client := newTmuxClient()
-	mgr := workspace.NewManager(store, client, sessionPrefix)
+	mgr := workspace.NewManager(store, client, cfg.Tmux.SessionPrefix)
 
-	detector := status.NewDetector(client, 50)
-	poller := status.NewPoller(detector, store, 1500*time.Millisecond)
+	detector := status.NewDetector(client, cfg.Status.CaptureLines)
+	poller := status.NewPoller(detector, store, time.Duration(cfg.Status.PollIntervalMS)*time.Millisecond)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go poller.Run(ctx)
 
-	app := tui.NewApp(store, mgr, poller, detector)
+	app := tui.NewApp(store, mgr, poller, detector, cfg)
 	p := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	_, err := p.Run()
@@ -137,7 +142,7 @@ func runNew(_ *cobra.Command, args []string) error {
 
 	store := newStore()
 	client := newTmuxClient()
-	mgr := workspace.NewManager(store, client, sessionPrefix)
+	mgr := workspace.NewManager(store, client, cfg.Tmux.SessionPrefix)
 
 	ws, err := mgr.Create(context.Background(), name, agentType, absPath, flagBranch, layout)
 	if err != nil {
@@ -156,7 +161,7 @@ func runList(_ *cobra.Command, _ []string) error {
 	}
 
 	client := newTmuxClient()
-	detector := status.NewDetector(client, 50)
+	detector := status.NewDetector(client, cfg.Status.CaptureLines)
 	workspaces, changed := status.RefreshWorkspaceStatuses(context.Background(), detector, workspaces)
 	if changed {
 		if err := store.Save(workspaces); err != nil {
@@ -185,7 +190,7 @@ func runAttach(_ *cobra.Command, args []string) error {
 	name := args[0]
 	store := newStore()
 	client := newTmuxClient()
-	mgr := workspace.NewManager(store, client, sessionPrefix)
+	mgr := workspace.NewManager(store, client, cfg.Tmux.SessionPrefix)
 
 	workspaces, err := mgr.List()
 	if err != nil {
@@ -205,7 +210,7 @@ func runDelete(_ *cobra.Command, args []string) error {
 	name := args[0]
 	store := newStore()
 	client := newTmuxClient()
-	mgr := workspace.NewManager(store, client, sessionPrefix)
+	mgr := workspace.NewManager(store, client, cfg.Tmux.SessionPrefix)
 
 	workspaces, err := mgr.List()
 	if err != nil {
