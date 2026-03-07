@@ -1,235 +1,317 @@
 # Colosseum Handoff Document
 
-Plan-vs-implementation gap analysis. Covers every feature from `project-draft.md` against the current codebase as of 2026-03-04.
+Current implementation snapshot and gap analysis for the codebase as of 2026-03-07.
+
+This document is meant to be a trustworthy handoff for the next agent. It reflects the current repo state after the recent hardening work, not just the original `project-draft.md` plan.
 
 ---
 
-## What's Built
+## Current Snapshot
 
-The project has a functional foundation consisting of 6 internal packages, a CLI entry point, and a Bubble Tea TUI that can create, list, delete, and switch between workspaces backed by tmux sessions. Agents auto-launch on workspace creation and status is detected in real time.
+Colosseum is a Go + tmux + Bubble Tea workspace manager for running AI coding agents in parallel. The current product shape is:
+
+- A working tmux-backed dashboard and CLI for creating, listing, attaching to, and deleting workspaces
+- Real status detection via pane scraping with per-agent regex patterns tuned to current Claude and Codex terminal output
+- A supported new-workspace surface limited to `claude` and `codex`
+- A shell-style path-completion flow in the new-workspace dialog
+- A deterministic tmux return path from attached workspaces back to the dashboard session that launched Colosseum
+- A still-unimplemented roadmap for worktrees, broadcast, notifications, diffing, and config
+
+### Repo Metrics
 
 | Metric | Value |
 |--------|-------|
-| Go source files (excluding worktree copies) | 32 |
-| Test files | 8 |
-| Test functions | 33 |
-| Internal packages | 6 (`tmux`, `agent`, `workspace`, `status`, `tui`, `tui/theme`, `tui/preview`, `tui/sidebar`, `tui/dialog`) |
+| Go source files under `cmd/` + `internal/` | 44 |
+| Test files | 12 |
+| Test functions | 55 |
+| Go packages under `cmd/` + `internal/` | 10 |
 | CLI subcommands | 4 (`new`, `list`, `attach`, `delete`) |
-| Fixture files | 18 `.txt` files across claude, codex, gemini |
+| Fixture files | 24 `.txt` files |
 
-**What the binary can do today:**
+### Recent Changes Since The Previous Handoff
 
-- Launch a Bubble Tea TUI dashboard inside tmux (`colosseum`)
-- Create workspaces with a named agent, project path, branch, and pane layout via CLI (`colosseum new`) or TUI dialog (`n` key)
-- Auto-launch the agent binary (e.g., `claude`, `codex`, `gemini`) in the agent pane on workspace creation
-- Delete workspaces with tmux session cleanup via CLI (`colosseum delete`) or TUI dialog (`d` key) — gracefully handles already-killed sessions
-- List workspaces with status icons via CLI (`colosseum list`)
-- Attach to a workspace's tmux session via CLI (`colosseum attach`) or TUI (`Enter`)
-- Poll agent pane output in the background and detect status (Working/Waiting/Idle/Error/Stopped) using per-agent regex patterns
-- Display real-time status updates and pane preview content in the TUI
-- Switch preview between panes (agent/shell/logs) using `h`/`l` keys with a visual tab bar
-- Navigate the workspace list (`j`/`k`), jump to next workspace needing attention (`J`), and view a help overlay (`?`)
-- Path autocomplete in the new workspace dialog (filesystem directory suggestions via Tab)
-- Duplicate workspace name guard prevents tmux session collisions
+These landed after the older 2026-03-04 handoff:
+
+1. New workspace creation is now intentionally restricted to `claude` and `codex`.
+2. The new-workspace path field now behaves more like a shell:
+   - live directory suggestions still update while typing
+   - `Enter` advances/submits instead of implicitly accepting completion
+   - `Tab` expands to the longest shared path prefix, then cycles matches on repeated presses
+   - `~` / `~/...` inputs are expanded before workspace creation
+   - the current suggestion is still rendered explicitly in the dialog
+3. Workspace lifecycle is safer:
+   - invalid layouts fail fast
+   - unsupported agents fail fast
+   - failed workspace creation rolls back the tmux session
+   - agent launch errors are surfaced instead of ignored
+   - delete only ignores real “session not found” errors
+4. `colosseum list` now refreshes live status from tmux before printing.
+5. Initial TUI workspace load now refreshes live status from tmux instead of trusting stale JSON.
+6. `tmux send-keys` for command dispatch now sends literal text first and `Enter` separately.
+7. Unimplemented roadmap keybindings no longer silently no-op:
+   - pressing them shows a status-bar message
+   - the help overlay marks them unavailable
+8. The preview pane now refreshes on a timer instead of only on status transitions or cursor movement.
+9. Preview content now wraps to the viewport width instead of overflowing past the pane border.
+10. Attaching to a workspace now installs a deterministic tmux return binding:
+    - `prefix+e` switches back to the dashboard session that launched Colosseum
+    - this is not tied to a hardcoded `colo-ctrl` session name
+11. Status detection was hardened against current Claude and Codex CLI drift:
+    - Codex now recognizes current `Working (... esc to interrupt)` output and current footer lines
+    - Claude now recognizes current `✻ Cooked for ...` activity lines and current footer/status-bar lines
+    - a bottom prompt can now resolve to `Working`, `Waiting`, or `Idle` based on immediately recent lines
+    - prompt-plus-recent-question states are now treated as `Waiting` consistently across Claude and Codex
+12. Fixture coverage and tests were expanded to cover the current live Claude/Codex pane formats plus preview wrapping.
 
 ---
 
-## Feature-by-Feature Status
+## What Works Today
+
+The binary can currently:
+
+- Launch the Bubble Tea dashboard inside tmux via `colosseum`
+- Create a workspace from CLI or TUI
+- Create pane layouts `agent`, `agent-shell`, or `agent-shell-logs`
+- Auto-launch the selected agent in the agent pane
+- Persist workspace state to `~/.config/colosseum/workspaces.json`
+- Refresh and display live workspace status
+- Attach to an existing workspace tmux session
+- Return from an attached workspace to the dashboard session with `prefix+e`
+- Delete a workspace and clean up the tmux session
+- Preview agent, shell, or logs panes inside the dashboard
+- Offer shell-style path completion in the new-workspace dialog
+
+The current supported agent surface for new workspaces is:
+
+| Agent | Status |
+|-------|--------|
+| Claude Code | Supported for creation |
+| Codex CLI | Supported for creation |
+| Gemini | Legacy definition still registered, not supported for new workspace creation |
+| OpenCode | Legacy definition still registered, not supported for new workspace creation |
+| Aider | Legacy definition still registered, not supported for new workspace creation |
+
+The “legacy definition still registered” detail matters because existing saved workspaces using those agent types can still be read and status-detected, but the normal create flow will reject them.
+
+---
+
+## Feature-By-Feature Status
 
 ### Workspace Management
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Create workspace with agent, path, branch | **Done** | `Manager.Create` builds tmux session, splits panes per layout, launches agent, persists to JSON. |
-| Auto-launch agent on create | **Done** | Agent binary is run via `tmux send-keys` in the agent pane immediately after session setup. Uses `AgentDef.Binary` + `LaunchFlags`. |
-| Delete workspace | **Done** | `Manager.Delete` kills tmux session (ignoring errors if already dead) and removes from store. |
-| Duplicate name guard | **Done** | `Manager.Create` checks for existing workspace with same title before creating. |
-| List workspaces | **Done** | `Store.List()` and CLI `list` command both implemented. |
-| Switch to workspace | **Done** | `Manager.SwitchTo` calls `tmux switch-client`. TUI wires this to Enter key. Status bar shows `tmux prefix+L` hint for returning. |
-| Rename workspace | **Not Started** | Key binding `r` is defined in `KeyMap` but no handler exists in `app.go`. No rename logic in `Manager` or `Store`. |
-| Reorder workspaces | **Not Started** | No reordering logic exists anywhere. The store appends new workspaces and there is no move/swap operation. |
-| Workspace persistence (JSON state file) | **Done** | `Store` reads/writes `~/.config/colosseum/workspaces.json` with atomic rename. Thread-safe with `sync.RWMutex`. |
-| Configurable pane layouts | **Done** | Three layouts defined (`agent`, `agent-shell`, `agent-shell-logs`). `Manager.Create` splits panes accordingly. Layout selection is available in both CLI flags and TUI dialog. |
+| Create workspace with agent, path, branch | **Done** | `Manager.Create` now validates agent support and layout before creating anything. |
+| Transactional create behavior | **Done** | If pane creation, launch, or persistence fails, the tmux session is rolled back. |
+| Auto-launch agent on create | **Done** | Agent launch errors are now returned instead of silently ignored. |
+| Delete workspace | **Done** | Deletes the JSON record only if tmux cleanup succeeds or the session is already gone. |
+| Duplicate name guard | **Done** | Title collision is checked before creation. |
+| List workspaces | **Done** | CLI list now refreshes live status from tmux before printing. |
+| Switch to workspace | **Done** | `tmux switch-client` is wired through CLI and TUI. |
+| Rename workspace | **Not Started** | No rename logic or dialog exists yet. |
+| Reorder workspaces | **Not Started** | No move/swap or ordering metadata exists. |
+| Workspace persistence | **Done** | JSON persistence with atomic rename and mutex protection. |
+| Configurable pane layouts | **Done** | Three layouts supported; invalid CLI layout strings are rejected. |
 
 ### Agent Support
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Pluggable agent registry | **Done** | Global registry in `agent/registry.go` with `Register`, `Get`, `Available`. |
-| Per-agent binary and flags | **Done** | `AgentDef` struct has `Binary`, `LaunchFlags`, `YoloFlags` for each agent. All agents launch with just their binary name (no default flags). |
-| 5 agents registered | **Done** | Claude (`claude`), Codex (`codex`), Gemini (`gemini`), OpenCode (`opencode`), Aider (`aider`). All registered via `init()` functions. |
-| Per-agent status detection patterns | **Done** | Each agent def has `WorkingPatterns`, `WaitingPatterns`, `IdlePatterns`, `ErrorPatterns`. |
-| YOLO mode activation | **Partial** | YoloFlags are defined per agent (e.g., `--dangerously-skip-permissions` for Claude, `--approval-mode full-auto` for Codex) but there is no UI toggle or mechanism to apply them. The new workspace dialog does not expose a YOLO option. |
-| Custom instruction injection | **Not Started** | No custom instruction flags or logic. |
+| Pluggable agent registry | **Done** | `Register`, `Get`, and `Available` still exist. |
+| Supported-agent surface | **Done** | `Supported()` / `IsSupported()` limit creation to `claude` and `codex`. |
+| Legacy registry entries for 5 agents | **Done** | All five definitions are still registered for compatibility and detection. |
+| Per-agent binary and flags | **Done** | Definitions include binary, launch flags, yolo flags, and detection patterns. |
+| Per-agent status detection patterns | **Done** | Claude, Codex, Gemini, OpenCode, and Aider all have pattern definitions. |
+| YOLO mode activation | **Partial** | Flags exist on agent defs, but there is still no UI or CLI switch to apply them. |
+| Custom instruction injection | **Not Started** | No implementation yet. |
 
 ### Status Detection
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Background goroutine polling | **Done** | `Poller.Run` ticks on a configurable interval, captures pane content, and sends `Update` structs through a channel. |
-| Per-agent regex pattern matching | **Done** | `DetectFromContent` uses the agent def's patterns in priority order: Working > Waiting > Error > Idle. |
-| Fixture-driven testing | **Done** | 18 fixture files across claude, codex, and gemini. `TestDetectFromContent_Fixtures` iterates all fixtures. |
-| Pane targeting | **Done** | Uses real tmux pane IDs (`%N` format) returned from `new-session -P -F #{pane_id}`. Works regardless of tmux `base-index` setting. |
-| Poller error handling | **Done** | On `List()` failure, all tracked workspaces transition to `StatusStopped` with updates sent to the channel. |
-| OpenCode/Aider fixture tests | **Not Started** | No fixture files exist under `testdata/fixtures/opencode/` or `testdata/fixtures/aider/`. Detector test only covers Claude, Codex, and Gemini. |
+| Background polling | **Done** | `Poller.Run` emits status updates on an interval. |
+| Per-agent regex detection | **Done** | Bottom prompt lines now resolve contextually: visible recent work keeps `Working`, visible recent question/choice state yields `Waiting`, otherwise prompt-only falls back to `Idle`. |
+| Current Claude/Codex CLI drift coverage | **Done** | Detection rules now cover current Claude `✻ Cooked for ...` lines, current Claude footer chrome, current Codex `Working (... esc to interrupt)` lines, and current Codex footer chrome. |
+| Fixture-driven testing | **Done** | Fixture coverage exists for Claude, Codex, and Gemini, including current live Claude/Codex pane formats. |
+| Pane targeting | **Done** | Uses real pane IDs returned by tmux. |
+| Poller error handling | **Done** | Provider failure transitions tracked workspaces to `Stopped`. |
+| Poller stale-status cleanup | **Done** | Status entries for deleted workspaces are now removed from the in-memory poller map. |
+| CLI live status refresh | **Done** | `colosseum list` does not rely on stale persisted status anymore. |
+| Initial TUI live status refresh | **Done** | Initial sidebar load refreshes statuses before rendering. |
+| OpenCode/Aider fixture tests | **Not Started** | Definitions exist, but there are still no dedicated fixtures for them. |
 
 ### Git Worktree Integration
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Create git worktree per workspace | **Not Started** | The draft lists an `internal/worktree/` package. No such package exists. The workspace model stores a `Branch` field but nothing calls `git worktree add`. |
+| Create git worktree per workspace | **Not Started** | No `internal/worktree/` package exists. |
 | Configurable worktree path templates | **Not Started** | No template resolution logic. |
-| Broadcast worktrees | **Not Started** | No broadcast-related worktree creation. |
-| Cleanup worktree on deletion | **Not Started** | `Manager.Delete` kills the tmux session but does not touch git worktrees. |
-| Diff viewer (worktree branch vs base) | **Not Started** | No diff computation code. |
+| Cleanup worktree on deletion | **Not Started** | Delete only handles tmux and JSON state. |
+| Broadcast worktrees | **Not Started** | No orchestration exists. |
+| Diff viewer against base branch | **Not Started** | No diff computation package exists. |
 
 ### Notification System
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| In-memory notification store | **Not Started** | No `internal/notification/` package exists. |
-| Per-workspace unread counts | **Partial** | The `Workspace` struct has an `UnreadCount` field and the sidebar renders unread badges, but nothing increments `UnreadCount`. It is always 0. |
-| Status transition notifications | **Not Started** | The poller sends `Update` events with previous/current status but no code translates these into notification objects. |
-| Desktop notifications (notify-send) | **Not Started** | No `notify-send` integration. |
-| Claude Code hook integration | **Not Started** | No `internal/hook/` package exists. |
-| Jump-to-unread (J key) | **Partial** | Jumps to the next workspace with `StatusWaiting` or `StatusError`. Navigates by status, not by unread notifications. |
-| Mark notifications as read (m key) | **Not Started** | Key binding defined, no handler. |
+| Notification store | **Not Started** | No `internal/notification/` package exists. |
+| Per-workspace unread counts | **Partial** | `UnreadCount` exists on the model and renders in the sidebar, but no code increments it. |
+| Status transition notifications | **Not Started** | Poller emits updates, but nothing converts them into notification records. |
+| Desktop notifications | **Not Started** | No `notify-send` integration. |
+| Claude hook integration | **Not Started** | No `internal/hook/` package exists. |
 
 ### Broadcast Prompt
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Broadcast prompt dialog | **Not Started** | Key binding `b` is defined but no handler. No `dialog/broadcast.go` exists. |
-| Multi-select workspace picker | **Not Started** | No multi-select component. |
-| Send prompt to multiple panes | **Not Started** | `Client.SendKeys` exists and works, but no broadcast orchestration. |
-| CLI `broadcast` command | **Not Started** | Not registered in `main.go`. |
+| Broadcast dialog | **Not Started** | No dialog, model, or dispatch logic exists. |
+| Multi-select target picker | **Not Started** | No component exists. |
+| Prompt fan-out via tmux | **Not Started** | `SendKeys` exists, but no broadcast orchestration uses it. |
+| CLI `broadcast` command | **Not Started** | Not registered. |
 
 ### Diff Viewer
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Full-screen diff overlay | **Not Started** | Key binding `D` is defined but no handler. No `tui/diff/` package exists. |
-| Side-by-side diff rendering | **Not Started** | No diff rendering code. |
-| CLI `diff` command | **Not Started** | Not registered in `main.go`. |
+| Full-screen diff overlay | **Not Started** | No `tui/diff/` package exists. |
+| Side-by-side diff rendering | **Not Started** | Not implemented. |
+| CLI `diff` command | **Not Started** | Not registered. |
 
 ### TUI Dashboard
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Bubble Tea app with sidebar + preview | **Done** | `tui/app.go` composes `sidebar.Model` and `preview.Model` side by side using lipgloss. |
-| Sidebar workspace list with status icons | **Done** | Sidebar renders status icons, agent type, branch name, and unread badges per workspace. |
-| Preview panel with pane output | **Done** | Preview panel shows the last 50 lines of the selected pane, refreshed on poll updates and cursor navigation. |
-| Pane tab bar in preview | **Done** | Multi-pane layouts show a tab bar (`[agent] shell logs`) with h/l switching. Active tab highlighted. Hidden for single-pane layouts. |
-| New workspace dialog | **Done** | Full form with text inputs (name, path with autocomplete, branch) and selectors (agent, layout). Tab/Enter navigation. |
-| Path autocomplete | **Done** | Path field uses `textinput.ShowSuggestions` with dynamic filesystem directory suggestions. Tab accepts suggestion, `~/` expansion supported. Hidden dirs excluded unless typing a dot. |
-| Delete confirmation dialog | **Done** | Prompts for y/n confirmation before killing session. |
-| Help overlay | **Done** | Lists all keybindings including unimplemented ones, plus `tmux prefix+L` return hint. |
-| Lipgloss styling with theme | **Done** | `theme.Theme` struct with full style definitions for all status types, borders, titles, badges, help text. |
-| Theme support (catppuccin, switching) | **Not Started** | Only `DefaultTheme()` exists. No theme loading from config, no switching. |
+| Sidebar + preview layout | **Done** | Main app composes sidebar and preview with lipgloss. |
+| Sidebar workspace list with status icons | **Done** | Includes branch and unread badge rendering. |
+| Preview panel | **Done** | Shows selected pane content, wraps long lines to viewport width, auto-scrolls to bottom on content updates, and refreshes on a timer. |
+| Pane tab bar | **Done** | `h` / `l` cycles pane tabs. |
+| New workspace dialog | **Done** | Name/path/branch inputs plus agent/layout selectors. |
+| Path autocomplete | **Done** | Live suggestions while typing, `Tab` expands/cycles shell-style, `Enter` advances/submits, `Up`/`Down` cycle, hint line rendered. |
+| Delete confirmation dialog | **Done** | Confirm delete flow exists. |
+| Help overlay | **Done** | Now distinguishes available vs unavailable shortcuts. |
+| Explicit unavailable-action feedback | **Done** | Pressing unavailable roadmap keys now sets a status-bar message instead of failing silently. |
+| Theme support beyond default | **Not Started** | Still only `DefaultTheme()`. |
 
 ### CLI Commands
 
 | Command | Status | Notes |
 |---------|--------|-------|
-| `colosseum` (launch TUI) | **Done** | Root command wires up store, tmux client, manager, poller, and launches Bubble Tea with alt screen. |
-| `colosseum new` | **Done** | Accepts `--path`, `--agent`, `--branch`, `--layout` flags. Validates agent type. |
-| `colosseum list` | **Done** | Lists workspaces with status icons, branch, agent type. |
-| `colosseum attach` | **Done** | Finds workspace by name and calls `SwitchTo`. |
-| `colosseum delete` | **Done** | Finds workspace by name and calls `Delete`. |
-| `colosseum broadcast` | **Not Started** | Not registered. |
-| `colosseum diff` | **Not Started** | Not registered. |
+| `colosseum` | **Done** | Launches the dashboard. |
+| `colosseum new` | **Done** | Supports only `claude` and `codex`; validates layout and agent support. |
+| `colosseum list` | **Done** | Refreshes live statuses before output. |
+| `colosseum attach` | **Done** | Switches into the workspace session and installs a `prefix+e` return binding back to the dashboard session you launched from. |
+| `colosseum delete` | **Done** | Works. |
+| `colosseum broadcast` | **Not Started** | Not present. |
+| `colosseum diff` | **Not Started** | Not present. |
 
 ### Keybindings
 
 | Key | Action | Status | Notes |
 |-----|--------|--------|-------|
-| `j/k` | Navigate workspace list | **Done** | Sidebar model handles j/k for cursor movement. |
-| `h/l` | Switch preview pane tab | **Done** | Cycles through available panes (agent/shell/logs) with visual tab bar. |
-| `Enter` | Attach to selected workspace | **Done** | Calls `switchToWorkspace` which runs `tmux switch-client`. Shows return hint. |
-| `n` | New workspace dialog | **Done** | Opens `NewWorkspaceModel` dialog with path autocomplete. |
-| `d` | Delete workspace | **Done** | Opens `DeleteModel` confirmation dialog. |
-| `J` | Jump to next needing attention | **Done** | Scans for Waiting/Error status. Resets pane focus to agent. |
-| `?` | Help overlay | **Done** | Opens `HelpModel` dialog with all bindings listed. |
-| `q` | Quit | **Done** | Sends `tea.Quit`. |
-| `b` | Broadcast prompt dialog | **Not Started** | Binding defined, no handler. |
-| `D` | Diff viewer | **Not Started** | Binding defined, no handler. |
-| `r` | Rename workspace | **Not Started** | Binding defined, no handler. |
-| `/` | Filter/search workspaces | **Not Started** | Binding defined, no handler. |
-| `m` | Mark notifications as read | **Not Started** | Binding defined, no handler. |
-| `R` | Restart agent | **Not Started** | Binding defined, no handler. |
-| `s` | Stop agent | **Not Started** | Binding defined, no handler. |
+| `j/k` | Navigate workspace list | **Done** | Implemented. |
+| `h/l` | Switch preview pane tab | **Done** | Implemented. |
+| `Enter` | Attach to workspace | **Done** | Implemented. |
+| `n` | New workspace dialog | **Done** | Implemented. |
+| `d` | Delete workspace | **Done** | Implemented. |
+| `J` | Jump to next needing attention | **Done** | Implemented. |
+| `?` | Help overlay | **Done** | Implemented. |
+| `q` | Quit | **Done** | Implemented. |
+| `prefix+e` | Return from attached workspace to dashboard | **Done** | Installed when Colosseum switches the tmux client into a workspace session; targets the session that launched the dashboard. |
+| `b` | Broadcast prompt | **Unavailable** | No implementation yet; pressing it shows an unavailable message. |
+| `D` | Diff viewer | **Unavailable** | Same behavior. |
+| `r` | Rename workspace | **Unavailable** | Same behavior. |
+| `/` | Filter/search workspaces | **Unavailable** | Same behavior. |
+| `m` | Mark notifications read | **Unavailable** | Same behavior. |
+| `R` | Restart agent | **Unavailable** | Same behavior. |
+| `s` | Stop agent | **Unavailable** | Same behavior. |
 
 ### Configuration
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| TOML config file | **Not Started** | No `internal/config/` package exists. `go-toml` is not in `go.mod`. |
-| Config-driven poll interval | **Not Started** | Poll interval is hardcoded to `1500ms` in `main.go`. |
-| Config-driven default agent/layout | **Not Started** | Defaults are hardcoded in CLI flags. |
-| Config-driven worktree settings | **Not Started** | No worktree config. |
-| Config-driven notification settings | **Not Started** | No notification config. |
-| Config-driven theme name | **Not Started** | No theme config. |
+| TOML config file | **Not Started** | No `internal/config/` package. |
+| Config-driven poll interval | **Not Started** | Poll interval is still hardcoded. |
+| Config-driven default agent/layout | **Not Started** | Defaults are still hardcoded. |
+| Config-driven worktree settings | **Not Started** | Not implemented. |
+| Config-driven notification settings | **Not Started** | Not implemented. |
+| Config-driven theme name | **Not Started** | Not implemented. |
 
 ---
 
-## Known Issues
+## Known Issues And Important Gaps
 
-1. **Unhandled keybindings**: 7 key bindings are defined in `KeyMap` (`Broadcast`, `Diff`, `Rename`, `Filter`, `MarkRead`, `Restart`, `Stop`) but have no corresponding handler in `app.go`. Pressing these keys does nothing silently.
+1. `UnreadCount` is still dead state. The field exists and renders, but nothing updates it.
+2. YOLO flags exist in agent definitions, but there is still no code path that uses them.
+3. The roadmap features are still absent: worktrees, notifications, broadcast, diffing, restart/stop behavior, rename/filter/mark-read flows, and config.
+4. The project vision still references git worktrees, but the actual create path still just launches tmux sessions in an existing directory and stores branch metadata.
+5. The intentional supported create surface is only `claude` and `codex`, even though legacy definitions for Gemini/OpenCode/Aider remain registered.
+6. OpenCode and Aider status definitions still have no dedicated fixture coverage.
+7. Status detection is materially better than it was at the start of this session, but it is still heuristic and regex-driven. Current Claude/Codex terminal formats are covered; future CLI chrome drift is still a risk.
+8. “Waiting” semantics are still only partially semantic. The current rule now treats prompt-plus-recent-question states as waiting, but there is still no protocol-level signal that cleanly separates “assistant asked a question in prose” from “assistant is truly blocked on user input.”
+9. The app still has two status-update authorities: the background poller and the direct refresh call used during initial TUI load. This is workable now, but still worth consolidating before larger event flows are added.
 
-2. **UnreadCount always zero**: The `Workspace.UnreadCount` field exists and the sidebar renders it, but nothing ever writes to it. The poller emits status transitions but no code increments unread counts.
+Things that are no longer current issues and should not be re-raised as if unfixed:
 
-3. **YoloFlags never applied**: YoloFlags are defined per agent but there is no UI toggle or code path to apply them when launching an agent.
-
-4. **StatusUpdateMsg listener re-registration**: `listenForUpdates` reads one update from the channel, then must be re-registered via `tea.Cmd`. This works correctly but status updates during dialog interaction cause a re-render via `tea.Batch`.
-
-5. **Missing `sergi/go-diff` dependency**: The draft lists `github.com/sergi/go-diff` for diff computation. It is not in `go.mod` and no diff code exists.
-
-6. **Missing `go-toml` dependency**: The draft lists `github.com/pelletier/go-toml/v2` for config parsing. It is not in `go.mod` and no config code exists.
-
-7. **SendKeys ignores errors on agent launch**: `Manager.Create` discards the error from `SendKeys` when launching the agent binary. If the agent binary is not installed, the error is silent.
-
----
-
-## Resolved Issues (from prior handoff)
-
-These issues from the previous handoff have been fixed:
-
-1. ~~Agent binary never launched~~ — Manager.Create now launches the agent via SendKeys after session setup.
-2. ~~Pane target hardcoded as session:0.0~~ — CreateSession returns real pane IDs via `-P -F #{pane_id}`.
-3. ~~Dialog navigation hijacks text input~~ — j/k/h/l removed from dialog field navigation; tab/shift+tab/enter used instead.
-4. ~~Delete fails on already-killed sessions~~ — KillSession error is now ignored; workspace always removed from store.
-5. ~~No duplicate workspace name check~~ — Manager.Create checks for existing title before creating.
-6. ~~Help overlay incomplete~~ — All keybindings now listed including unimplemented ones.
-7. ~~No error handling on poller list failure~~ — Poller transitions all tracked workspaces to Stopped on error.
-8. ~~Arrow key navigation~~ — Intentionally vim-only (j/k/h/l) per user preference.
+- silent no-op roadmap keybindings
+- ignored agent launch errors
+- stale CLI list statuses from JSON only
+- invalid layout strings silently degrading to one pane
+- delete ignoring every tmux kill error
+- partial workspace create leaking tmux sessions on downstream failure
+- preview content overflowing past the pane border
+- no deterministic way back to the dashboard after attaching to a workspace
+- current live Claude/Codex CLI output missing from fixture coverage
 
 ---
 
 ## Recommended Next Steps
 
-Ordered by impact and dependency chain:
+If picking up from here, the best order is:
 
-1. **Add `internal/config/` package with TOML loading** — Many features depend on configuration (poll interval, default agent, worktree paths, notification toggles, theme). Wiring config early avoids hardcoded values spreading further.
+1. **Decide whether Colosseum is primarily a tmux dashboard or a real worktree manager**
+   - The code and docs still do not fully agree.
+   - This decision should drive whether `internal/worktree/` is the next architectural layer or whether the docs/product language should narrow.
 
-2. **Implement `internal/worktree/` package** — Git worktree create/remove/list. This unblocks broadcast and diff features, which are the project's core differentiators per the vision statement.
+2. **Continue status-system hardening while the surface is still small**
+   - Consolidate the split refresh paths.
+   - Tighten waiting semantics further if false positives remain.
+   - Add a lightweight fixture-capture workflow for current agent panes before more CLIs drift.
 
-3. **Implement `internal/notification/` package** — In-memory store, status-transition-to-notification logic, unread count management. Wire the poller's `Update` events to notification creation.
+3. **Implement notifications and unread-count plumbing**
+   - The model already exposes `UnreadCount`.
+   - Poller updates are already available.
+   - This is the next clean layer after the recent status hardening.
 
-4. **Wire remaining keybindings** — Low effort, high discoverability:
-   - `s` (stop): Send Ctrl+C to agent pane via `tmux send-keys`.
-   - `R` (restart): Kill and re-send the agent launch command.
-   - `r` (rename): Add `Rename` method to `Manager`, create a rename dialog.
-   - `m` (mark read): Clear unread count for selected workspace.
-   - `/` (filter): Add text input filter over workspace list.
+4. **Implement restart/stop first among the unavailable TUI actions**
+   - These are simpler than broadcast/diff/rename/filter and would convert placeholders into genuinely useful operational controls.
 
-5. **YOLO mode toggle** — Add a checkbox or toggle in the new workspace dialog and/or a keybinding to enable YOLO mode (appends `YoloFlags` to the agent launch command).
+5. **Add config loading**
+   - Poll interval, default agent, default layout, and theme selection are the obvious first values.
 
-6. **Broadcast prompt dialog and execution** — Create `dialog/broadcast.go` with multi-select workspace picker, wire `b` key. Use `SendKeys` to dispatch the prompt to each selected workspace's agent pane.
+---
 
-7. **Diff viewer** — Create `tui/diff/` package, wire `D` key. Requires worktree package from step 2.
+## Suggested Starting Points In The Code
 
-8. **Desktop notifications** — Implement `notify-send` integration. Depends on notification store from step 3.
+- CLI bootstrap: `cmd/colosseum/main.go`
+- Workspace lifecycle: `internal/workspace/manager.go`
+- Persistence: `internal/workspace/storage.go`
+- Live status refresh helper: `internal/status/refresh.go`
+- Poller and updates: `internal/status/poller.go`
+- Detection heuristics: `internal/status/detector.go`
+- Agent definitions: `internal/agent/*.go`
+- TUI root app: `internal/tui/app.go`
+- New workspace dialog: `internal/tui/dialog/new_workspace.go`
+- Help overlay: `internal/tui/dialog/help.go`
 
-9. **OpenCode and Aider fixture tests** — Add fixture files for the remaining two agents. The detector test infrastructure already supports it; only the fixture data is missing.
+---
 
-10. **Theme support and config-driven theming** — Add alternative themes (catppuccin), load theme name from config.
+## Validation Commands
+
+These are the relevant commands for continuing work safely:
+
+```bash
+go test ./... -count=1
+go build -o colosseum ./cmd/colosseum
+```
+
+If you change the tmux command layer or workspace lifecycle, re-run both before committing.
