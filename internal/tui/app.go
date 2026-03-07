@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ramtinj/colosseum/internal/agent"
 	"github.com/ramtinj/colosseum/internal/config"
+	"github.com/ramtinj/colosseum/internal/notification"
 	"github.com/ramtinj/colosseum/internal/status"
 	"github.com/ramtinj/colosseum/internal/tui/dialog"
 	"github.com/ramtinj/colosseum/internal/tui/preview"
@@ -57,6 +58,7 @@ type App struct {
 	manager                *workspace.Manager
 	poller                 *status.Poller
 	detector               *status.Detector
+	notifications          *notification.Store
 	previewRefreshInterval time.Duration
 	sidebarMinWidth        int
 	sidebarMaxWidth        int
@@ -81,6 +83,7 @@ func NewApp(store *workspace.Store, manager *workspace.Manager, poller *status.P
 		manager:                manager,
 		poller:                 poller,
 		detector:               detector,
+		notifications:          notification.NewStore(),
 		previewRefreshInterval: time.Duration(cfg.UI.PreviewRefreshMS) * time.Millisecond,
 		sidebarMinWidth:        cfg.UI.SidebarMinWidth,
 		sidebarMaxWidth:        cfg.UI.SidebarMaxWidth,
@@ -119,7 +122,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case StatusUpdateMsg:
-		a.sidebar.UpdateWorkspaceStatus(msg.WorkspaceID, msg.Current)
+		if persistCmd := a.applyStatusUpdate(status.Update(msg)); persistCmd != nil {
+			cmds = append(cmds, persistCmd)
+		}
 		if ws := a.sidebar.SelectedWorkspace(); ws != nil && ws.ID == msg.WorkspaceID {
 			panes := a.availablePanes()
 			if a.focusedPaneIdx < len(panes) && panes[a.focusedPaneIdx] == "agent" {
@@ -198,7 +203,9 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, a.keys.Enter):
 			if ws := a.sidebar.SelectedWorkspace(); ws != nil {
 				a.statusBar = fmt.Sprintf("Switched to %q — prefix+e returns to dashboard", ws.Title)
-				return a, a.switchToWorkspace(ws.ID)
+				cmds = append(cmds, a.markSelectedWorkspaceRead())
+				cmds = append(cmds, a.switchToWorkspace(ws.ID))
+				return a, tea.Batch(cmds...)
 			}
 			return a, nil
 
@@ -219,7 +226,7 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.jumpToNextAttention()
 			a.focusedPaneIdx = 0
 			a.updatePreviewContent()
-			return a, nil
+			return a, a.markSelectedWorkspaceRead()
 
 		case key.Matches(msg, a.keys.Broadcast):
 			if len(a.sidebar.Workspaces) == 0 {
@@ -284,6 +291,7 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 		if a.sidebar.Cursor != prevCursor {
 			a.focusedPaneIdx = 0
+			cmds = append(cmds, a.markSelectedWorkspaceRead())
 		}
 		a.updatePreviewContent()
 	}
@@ -587,4 +595,68 @@ func pluralize(count int) string {
 		return ""
 	}
 	return "s"
+}
+
+func (a *App) applyStatusUpdate(update status.Update) tea.Cmd {
+	a.sidebar.UpdateWorkspaceStatus(update.WorkspaceID, update.Current)
+
+	ws := a.sidebar.WorkspaceByID(update.WorkspaceID)
+	if ws == nil || !shouldNotifyStatusTransition(update) {
+		return nil
+	}
+
+	selected := a.sidebar.SelectedWorkspace()
+	isSelected := selected != nil && selected.ID == update.WorkspaceID
+	entry := a.notifications.AddStatusTransition(update.WorkspaceID, ws.Title, update.Previous, update.Current, isSelected)
+	a.statusBar = entry.Message
+
+	if isSelected {
+		return nil
+	}
+
+	a.sidebar.IncrementUnread(update.WorkspaceID)
+	return a.persistWorkspaces()
+}
+
+func (a App) persistWorkspaces() tea.Cmd {
+	if a.store == nil {
+		return nil
+	}
+
+	workspaces := make([]workspace.Workspace, len(a.sidebar.Workspaces))
+	copy(workspaces, a.sidebar.Workspaces)
+
+	return func() tea.Msg {
+		if err := a.store.Save(workspaces); err != nil {
+			return errMsg{err: fmt.Errorf("save workspaces: %w", err)}
+		}
+		return nil
+	}
+}
+
+func (a *App) markSelectedWorkspaceRead() tea.Cmd {
+	ws := a.sidebar.SelectedWorkspace()
+	if ws == nil {
+		return nil
+	}
+
+	a.notifications.MarkWorkspaceRead(ws.ID)
+	if !a.sidebar.ClearUnread(ws.ID) {
+		return nil
+	}
+
+	return a.persistWorkspaces()
+}
+
+func shouldNotifyStatusTransition(update status.Update) bool {
+	if update.Previous == agent.StatusUnknown || update.Previous == update.Current {
+		return false
+	}
+
+	switch update.Current {
+	case agent.StatusWaiting, agent.StatusIdle, agent.StatusError, agent.StatusStopped:
+		return true
+	default:
+		return false
+	}
 }

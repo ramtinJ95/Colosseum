@@ -89,3 +89,26 @@ func (m *Model) UpdateWorkspaceStatus(id string, s agent.Status) {
 		}
 	}
 }
+
+func (m *Model) WorkspaceByID(id string) *workspace.Workspace {
+	for i := range m.Workspaces {
+		if m.Workspaces[i].ID == id {
+			return &m.Workspaces[i]
+		}
+	}
+	return nil
+}
+
+func (m *Model) IncrementUnread(id string) {
+	if ws := m.WorkspaceByID(id); ws != nil {
+		ws.UnreadCount++
+	}
+}
+
+func (m *Model) ClearUnread(id string) bool {
+	if ws := m.WorkspaceByID(id); ws != nil && ws.UnreadCount > 0 {
+		ws.UnreadCount = 0
+		return true
+	}
+	return false
+}
