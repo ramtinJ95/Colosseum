@@ -161,7 +161,7 @@ The “legacy definition still registered” detail matters because existing sav
 | Pane title detection | **Done** | Braille in tmux pane title upgrades `Unknown` → `Working`. Does not override `Idle` (title is sticky). |
 | Spike/hysteresis filtering | **Done** | 1s spike + 500ms hysteresis prevents flicker. Urgent states (Waiting/Error/Stopped) bypass. Configurable via `WithSpikeWindow`/`WithHysteresisWindow`. |
 | Current Claude/Codex CLI drift coverage | **Done** | Detection rules now cover current Claude `✻ Cooked for ...` lines, current Claude footer chrome, current Codex `Working (... esc to interrupt)` lines, and current Codex footer chrome. |
-| Fixture-driven testing | **Done** | Fixture coverage exists for Claude, Codex, and Gemini, including current live Claude/Codex pane formats. |
+| Fixture-driven testing | **Done** | Fixture coverage exists for Claude, Codex, and Gemini, including current live Claude/Codex pane formats. A capture workflow now lives in `scripts/capture_fixture.sh` and `testdata/fixtures/README.md`. |
 | Pane targeting | **Done** | Uses real pane IDs returned by tmux. |
 | Poller error handling | **Done** | Provider failure transitions tracked workspaces to `Stopped`. |
 | Poller stale-status cleanup | **Done** | Status entries for deleted workspaces are now removed from the in-memory poller map. |
@@ -317,7 +317,7 @@ If picking up from here, the best order is:
 3. **Continue status-system hardening while the surface is still small**
    - Consolidate the split refresh paths.
    - Tighten waiting semantics further if false positives remain.
-   - Add a lightweight fixture-capture workflow for current agent panes before more CLIs drift.
+   - Keep using the fixture-capture workflow in `scripts/capture_fixture.sh` before releases so current pane samples do not drift silently.
 
 4. **Implement notifications and unread-count plumbing**
    - The model already exposes `UnreadCount`.
