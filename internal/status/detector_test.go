@@ -114,6 +114,26 @@ func TestDetectFromContent_WorkingBeforePromptBottomWins(t *testing.T) {
 	}
 }
 
+func TestDetectFromContent_PromptWithRecentQuestionMeansWaitingForClaude(t *testing.T) {
+	def, _ := agent.Get(agent.Claude)
+
+	content := "● I didn't do an independent analysis of what would matter most to you as a user.\nDo you have a different sense of what's most valuable?\n\n❯"
+	got := DetectFromContent(content, def)
+	if got != agent.StatusWaiting {
+		t.Errorf("prompt with recent question should be Waiting, got %s", got)
+	}
+}
+
+func TestDetectFromContent_PromptWithRecentQuestionMeansWaitingForCodex(t *testing.T) {
+	def, _ := agent.Get(agent.Codex)
+
+	content := "• I have enough now.\nWould you like me to do a deeper code-level audit of a specific package?\n\n›"
+	got := DetectFromContent(content, def)
+	if got != agent.StatusWaiting {
+		t.Errorf("prompt with recent question should be Waiting, got %s", got)
+	}
+}
+
 func TestDetectFromContent_StatusBarFiltered(t *testing.T) {
 	def, _ := agent.Get(agent.Claude)
 

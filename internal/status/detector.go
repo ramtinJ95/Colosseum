@@ -61,13 +61,20 @@ func DetectFromContent(content string, def *agent.AgentDef) agent.Status {
 		bottom = lastNonEmpty[len(lastNonEmpty)-1:]
 	}
 	if matchesAnyLine(bottom, def.IdlePatterns) {
-		// Codex can keep a prompt-like helper line at the bottom while still
-		// rendering an active "Working (... esc to interrupt)" line directly
-		// above it. Prefer Working in that case so the sidebar does not
-		// flicker back to Idle mid-response.
-		if len(lastNonEmpty) >= 2 && matchesAnyLine(lastNonEmpty[len(lastNonEmpty)-2:len(lastNonEmpty)-1], def.WorkingPatterns) {
+		recent := linesBeforeBottom(lastNonEmpty, 3)
+
+		// If the agent is visibly still running on the line right above the
+		// prompt/helper line, keep it in Working rather than flickering back.
+		if matchesAnyLine(linesBeforeBottom(lastNonEmpty, 1), def.WorkingPatterns) {
 			return agent.StatusWorking
 		}
+
+		// A visible prompt with a recent explicit question/choice means the
+		// agent is waiting on the user, not merely idle at a fresh prompt.
+		if isPromptOnly(bottom[0]) && matchesAny(recent, def.WaitingPatterns) {
+			return agent.StatusWaiting
+		}
+
 		return agent.StatusIdle
 	}
 
@@ -97,6 +104,20 @@ func lastNonEmptyLines(lines []string, n int) []string {
 		result[i], result[j] = result[j], result[i]
 	}
 	return result
+}
+
+func linesBeforeBottom(lines []string, n int) []string {
+	if len(lines) <= 1 || n <= 0 {
+		return nil
+	}
+
+	end := len(lines) - 1
+	start := max(0, end-n)
+	return lines[start:end]
+}
+
+func isPromptOnly(line string) bool {
+	return regexp.MustCompile(`^\s*[❯›>$]\s*$`).MatchString(line)
 }
 
 func matchesAny(lines []string, patterns []*regexp.Regexp) bool {
