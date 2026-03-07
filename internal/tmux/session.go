@@ -7,7 +7,7 @@ import (
 )
 
 const defaultSessionPrefix = "colo-"
-const dashboardReturnKey = "C-g"
+const dashboardReturnKey = "e"
 
 type Client struct {
 	Commander     Commander

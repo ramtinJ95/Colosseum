@@ -117,7 +117,7 @@ func TestSwitchClientInstallsDashboardBinding(t *testing.T) {
 		"bind-key",
 		"-N", "Colosseum dashboard",
 		"-T", "prefix",
-		"C-g",
+		"e",
 		"switch-client",
 		"-t", "dashboard",
 	})

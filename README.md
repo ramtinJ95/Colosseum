@@ -93,7 +93,7 @@ colosseum list
 colosseum attach my-feature
 ```
 
-Switches your tmux client to the workspace's session. Colosseum also installs a tmux `prefix+C-g` binding that returns directly to the dashboard session you launched it from.
+Switches your tmux client to the workspace's session. Colosseum also installs a tmux `prefix+e` binding that returns directly to the dashboard session you launched it from.
 
 ### Delete a workspace
 
