@@ -22,7 +22,7 @@ func (c *Client) SplitWindow(ctx context.Context, session string, horizontal boo
 	format := BuildFormat(FormatPaneID)
 	output, err := c.Commander.Run(ctx,
 		"split-window", orientation,
-		"-t", c.fullName(session),
+		"-t", session,
 		"-c", startDir,
 		"-P", "-F", format,
 	)
@@ -103,7 +103,7 @@ func (c *Client) ResizePane(ctx context.Context, target string, width, height in
 
 func (c *Client) ListPanes(ctx context.Context, session string) ([]PaneInfo, error) {
 	format := BuildFormat(FormatPaneID, FormatPaneWidth, FormatPaneHeight)
-	output, err := c.Commander.Run(ctx, "list-panes", "-t", c.fullName(session), "-F", format)
+	output, err := c.Commander.Run(ctx, "list-panes", "-t", session, "-F", format)
 	if err != nil {
 		return nil, fmt.Errorf("list panes in %q: %w", session, err)
 	}

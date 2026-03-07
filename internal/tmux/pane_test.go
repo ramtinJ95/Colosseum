@@ -11,7 +11,7 @@ func TestSplitWindow(t *testing.T) {
 		mock := NewMockCommander(MockResponse{Output: "%5", Err: nil})
 		client := NewClient(mock)
 
-		paneID, err := client.SplitWindow(context.Background(), "myproject", true, "/tmp")
+		paneID, err := client.SplitWindow(context.Background(), "colo-myproject", true, "/tmp")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -29,7 +29,7 @@ func TestSplitWindow(t *testing.T) {
 		mock := NewMockCommander(MockResponse{Output: "%8", Err: nil})
 		client := NewClient(mock)
 
-		paneID, err := client.SplitWindow(context.Background(), "myproject", false, "/tmp")
+		paneID, err := client.SplitWindow(context.Background(), "colo-myproject", false, "/tmp")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -156,7 +156,7 @@ func TestListPanes(t *testing.T) {
 	})
 	client := NewClient(mock)
 
-	panes, err := client.ListPanes(context.Background(), "myproject")
+	panes, err := client.ListPanes(context.Background(), "colo-myproject")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -164,6 +164,8 @@ func TestListPanes(t *testing.T) {
 	if len(panes) != 2 {
 		t.Fatalf("expected 2 panes, got %d", len(panes))
 	}
+
+	assertArgs(t, mock.Calls[0].Args, []string{"list-panes", "-t", "colo-myproject", "-F", BuildFormat(FormatPaneID, FormatPaneWidth, FormatPaneHeight)})
 
 	if panes[0].ID != "%1" || panes[0].Width != 120 || panes[0].Height != 40 {
 		t.Errorf("pane[0] mismatch: %+v", panes[0])

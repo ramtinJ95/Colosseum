@@ -9,7 +9,7 @@ func TestCreateSession(t *testing.T) {
 	mock := NewMockCommander(MockResponse{Output: "%0\n", Err: nil})
 	client := NewClient(mock)
 
-	paneID, err := client.CreateSession(context.Background(), "myproject", "/home/user/projects/myproject")
+	paneID, err := client.CreateSession(context.Background(), "colo-myproject", "/home/user/projects/myproject")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -30,7 +30,7 @@ func TestKillSession(t *testing.T) {
 	mock := NewMockCommander(MockResponse{Output: "", Err: nil})
 	client := NewClient(mock)
 
-	err := client.KillSession(context.Background(), "myproject")
+	err := client.KillSession(context.Background(), "colo-myproject")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestSessionExists(t *testing.T) {
 		mock := NewMockCommander(MockResponse{Output: "", Err: nil})
 		client := NewClient(mock)
 
-		if !client.SessionExists(context.Background(), "myproject") {
+		if !client.SessionExists(context.Background(), "colo-myproject") {
 			t.Fatal("expected session to exist")
 		}
 
@@ -81,7 +81,7 @@ func TestListSessions(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	expected := []string{"project1", "project2", "project3"}
+	expected := []string{"colo-project1", "colo-project2", "colo-project3"}
 	if len(sessions) != len(expected) {
 		t.Fatalf("expected %d sessions, got %d: %v", len(expected), len(sessions), sessions)
 	}
@@ -100,7 +100,7 @@ func TestSwitchClientInstallsDashboardBinding(t *testing.T) {
 	)
 	client := NewClient(mock)
 
-	if err := client.SwitchClient(context.Background(), "myproject"); err != nil {
+	if err := client.SwitchClient(context.Background(), "colo-myproject"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 

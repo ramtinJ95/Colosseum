@@ -64,16 +64,16 @@ func (m *Manager) Create(ctx context.Context, title string, agentType agent.Agen
 	}
 
 	id := uuid.New().String()
-	sessionName := m.sessionPrefix + title
+	sessionName := m.prefixedSessionName(title)
 
-	agentPaneID, err := m.sessions.CreateSession(ctx, title, projectPath)
+	agentPaneID, err := m.sessions.CreateSession(ctx, sessionName, projectPath)
 	if err != nil {
 		return nil, fmt.Errorf("creating session for %q: %w", title, err)
 	}
 	rollback := true
 	defer func() {
 		if rollback {
-			_ = m.sessions.KillSession(ctx, title)
+			_ = m.sessions.KillSession(ctx, sessionName)
 		}
 	}()
 
@@ -82,7 +82,7 @@ func (m *Manager) Create(ctx context.Context, title string, agentType agent.Agen
 	}
 
 	if layout.PaneCount() >= 2 {
-		paneID, err := m.sessions.SplitWindow(ctx, title, true, projectPath)
+		paneID, err := m.sessions.SplitWindow(ctx, sessionName, true, projectPath)
 		if err != nil {
 			return nil, fmt.Errorf("splitting window for shell pane: %w", err)
 		}
@@ -90,7 +90,7 @@ func (m *Manager) Create(ctx context.Context, title string, agentType agent.Agen
 	}
 
 	if layout.PaneCount() >= 3 {
-		paneID, err := m.sessions.SplitWindow(ctx, title, false, projectPath)
+		paneID, err := m.sessions.SplitWindow(ctx, sessionName, false, projectPath)
 		if err != nil {
 			return nil, fmt.Errorf("splitting window for logs pane: %w", err)
 		}
@@ -139,7 +139,8 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("workspace %q not found", id)
 	}
 
-	if err := m.sessions.KillSession(ctx, ws.Title); err != nil && !tmux.IsSessionNotFound(err) {
+	sessionName := m.workspaceSessionName(ws)
+	if err := m.sessions.KillSession(ctx, sessionName); err != nil && !tmux.IsSessionNotFound(err) {
 		return fmt.Errorf("killing session for %q: %w", ws.Title, err)
 	}
 
@@ -163,7 +164,7 @@ func (m *Manager) SwitchTo(ctx context.Context, id string) error {
 		return fmt.Errorf("workspace %q not found", id)
 	}
 
-	if err := m.sessions.SwitchClient(ctx, ws.Title); err != nil {
+	if err := m.sessions.SwitchClient(ctx, m.workspaceSessionName(ws)); err != nil {
 		return fmt.Errorf("switching to %q: %w", ws.Title, err)
 	}
 
@@ -230,4 +231,15 @@ func (m *Manager) Broadcast(ctx context.Context, prompt string, workspaceIDs []s
 	}
 
 	return result, nil
+}
+
+func (m *Manager) prefixedSessionName(title string) string {
+	return m.sessionPrefix + title
+}
+
+func (m *Manager) workspaceSessionName(ws Workspace) string {
+	if ws.SessionName != "" {
+		return ws.SessionName
+	}
+	return m.prefixedSessionName(ws.Title)
 }
