@@ -1,8 +1,10 @@
 package dialog
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ramtinj/colosseum/internal/agent"
 	"github.com/ramtinj/colosseum/internal/workspace"
@@ -76,5 +78,37 @@ func TestBroadcastUpdateTogglesTargetsAndAllSelection(t *testing.T) {
 	selected = model.selectedWorkspaceIDs()
 	if len(selected) != 0 {
 		t.Fatalf("selected after clear-all = %v, want none", selected)
+	}
+}
+
+func TestBroadcastUsesConfiguredKeyMap(t *testing.T) {
+	model := NewBroadcast([]workspace.Workspace{
+		{ID: "ws-1", Title: "one", AgentType: agent.Claude},
+		{ID: "ws-2", Title: "two", AgentType: agent.Codex},
+	}, "ws-1").WithKeyMap(BroadcastKeyMap{
+		Up:    key.NewBinding(key.WithKeys("w")),
+		Down:  key.NewBinding(key.WithKeys("s")),
+		Tab:   key.NewBinding(key.WithKeys("f")),
+		Enter: key.NewBinding(key.WithKeys("e")),
+	})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if updated.cursor != 1 {
+		t.Fatalf("cursor after configured down key = %d, want 1", updated.cursor)
+	}
+
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if updated.focus != broadcastFocusTargets {
+		t.Fatalf("focus after default tab = %v, want targets", updated.focus)
+	}
+
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+	if updated.focus != broadcastFocusPrompt {
+		t.Fatalf("focus after configured tab key = %v, want prompt", updated.focus)
+	}
+
+	view := updated.View()
+	if !strings.Contains(view, "f: switch focus") {
+		t.Fatalf("view = %q, want configured tab key help", view)
 	}
 }

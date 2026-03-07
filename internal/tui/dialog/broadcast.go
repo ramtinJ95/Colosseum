@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/ramtinj/colosseum/internal/config"
 	"github.com/ramtinj/colosseum/internal/tui/theme"
 	"github.com/ramtinj/colosseum/internal/workspace"
 )
@@ -29,9 +31,17 @@ type BroadcastModel struct {
 	cursor  int
 	focus   broadcastFocus
 	prompt  textarea.Model
+	keys    BroadcastKeyMap
 	width   int
 	height  int
 	theme   theme.Theme
+}
+
+type BroadcastKeyMap struct {
+	Up    key.Binding
+	Down  key.Binding
+	Tab   key.Binding
+	Enter key.Binding
 }
 
 type broadcastTarget struct {
@@ -71,6 +81,7 @@ func NewBroadcast(workspaces []workspace.Workspace, selectedID string) Broadcast
 	return BroadcastModel{
 		targets: targets,
 		prompt:  prompt,
+		keys:    DefaultBroadcastKeyMap(),
 		theme:   theme.DefaultTheme(),
 		width:   72,
 		height:  20,
@@ -87,13 +98,6 @@ func (m BroadcastModel) Update(msg tea.Msg) (BroadcastModel, tea.Cmd) {
 		switch msg.String() {
 		case "esc":
 			return m, func() tea.Msg { return BroadcastCancelMsg{} }
-		case "tab", "shift+tab":
-			if m.focus == broadcastFocusTargets {
-				m.focus = broadcastFocusPrompt
-			} else {
-				m.focus = broadcastFocusTargets
-			}
-			return m, m.applyFocus()
 		case "ctrl+s":
 			prompt := strings.TrimSpace(m.prompt.Value())
 			if prompt == "" || len(m.selectedWorkspaceIDs()) == 0 {
@@ -107,24 +111,33 @@ func (m BroadcastModel) Update(msg tea.Msg) (BroadcastModel, tea.Cmd) {
 			}
 		}
 
+		if key.Matches(msg, m.keys.Tab) || msg.String() == "shift+tab" {
+			if m.focus == broadcastFocusTargets {
+				m.focus = broadcastFocusPrompt
+			} else {
+				m.focus = broadcastFocusTargets
+			}
+			return m, m.applyFocus()
+		}
+
 		if m.focus == broadcastFocusTargets {
-			switch msg.String() {
-			case "up", "k":
+			switch {
+			case key.Matches(msg, m.keys.Up):
 				if m.cursor > 0 {
 					m.cursor--
 				}
 				return m, nil
-			case "down", "j":
+			case key.Matches(msg, m.keys.Down):
 				if m.cursor < len(m.targets)-1 {
 					m.cursor++
 				}
 				return m, nil
-			case " ", "x", "enter":
+			case key.Matches(msg, m.keys.Enter), msg.String() == " ", msg.String() == "x":
 				if len(m.targets) > 0 {
 					m.targets[m.cursor].Selected = !m.targets[m.cursor].Selected
 				}
 				return m, nil
-			case "a":
+			case msg.String() == "a":
 				m.toggleAll()
 				return m, nil
 			}
@@ -234,9 +247,15 @@ func (m BroadcastModel) View() string {
 		promptView = m.prompt.View()
 	}
 
-	help := t.Dim.Render("  tab: switch focus  space: toggle target  a: toggle all  ctrl+s: send  esc: cancel")
+	moveKeys := fmt.Sprintf("%s/%s", keyLabel(m.keys.Up), keyLabel(m.keys.Down))
+	toggleKey := keyLabel(m.keys.Enter)
+
+	help := t.Dim.Render(fmt.Sprintf(
+		"  %s: switch focus  %s: move  space/%s: toggle target  a: toggle all  ctrl+s: send  esc: cancel",
+		keyLabel(m.keys.Tab), moveKeys, toggleKey,
+	))
 	if m.focus == broadcastFocusPrompt {
-		help = t.Dim.Render("  tab: switch focus  enter: newline  ctrl+s: send  esc: cancel")
+		help = t.Dim.Render(fmt.Sprintf("  %s: switch focus  enter: newline  ctrl+s: send  esc: cancel", keyLabel(m.keys.Tab)))
 	}
 
 	content := strings.Join([]string{
@@ -262,4 +281,27 @@ func (m BroadcastModel) View() string {
 func (m BroadcastModel) WithTheme(t theme.Theme) BroadcastModel {
 	m.theme = t
 	return m
+}
+
+func (m BroadcastModel) WithKeyMap(keys BroadcastKeyMap) BroadcastModel {
+	m.keys = keys
+	return m
+}
+
+func DefaultBroadcastKeyMap() BroadcastKeyMap {
+	defaults := config.Default().Keys
+	return BroadcastKeyMap{
+		Up:    key.NewBinding(key.WithKeys(defaults.Up)),
+		Down:  key.NewBinding(key.WithKeys(defaults.Down)),
+		Tab:   key.NewBinding(key.WithKeys(defaults.Tab)),
+		Enter: key.NewBinding(key.WithKeys(defaults.Enter)),
+	}
+}
+
+func keyLabel(binding key.Binding) string {
+	keys := binding.Keys()
+	if len(keys) > 0 {
+		return strings.Join(keys, "/")
+	}
+	return binding.Help().Key
 }
