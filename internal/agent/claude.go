@@ -10,11 +10,14 @@ func init() {
 		YoloFlags:   []string{"--dangerously-skip-permissions"},
 		IgnorePatterns: []*regexp.Regexp{
 			regexp.MustCompile(`Tokens:.*Remaining:`),
-			regexp.MustCompile(`^--\s+(INSERT|NORMAL)\s+--`),
+			regexp.MustCompile(`^\s*Opus .* \| .*`),
+			regexp.MustCompile(`^[\s─▪]+$`),
+			regexp.MustCompile(`^\s*--\s+(INSERT|NORMAL)\s+--`),
 		},
 		WorkingPatterns: []*regexp.Regexp{
 			regexp.MustCompile(`\(esc to interrupt\)`),
 			BrailleSpinner,
+			regexp.MustCompile(`(?m)^\s*✻\s+Cooked for\b`),
 		},
 		WaitingPatterns: []*regexp.Regexp{
 			regexp.MustCompile(`(?i)(yes,?\s*allow|allow\s*(once|always))`),

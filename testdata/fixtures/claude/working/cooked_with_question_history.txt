@@ -1,0 +1,13 @@
+ ▐▛███▜▌   Claude Code v2.1.71
+▝▜█████▛▘  Opus 4.6 with high effort · Claude Team
+  ▘▘ ▝▝    ~/personal-workspace/Colosseum
+
+❯ what is this project about and how can the current implementation be improved in broad strokes
+
+● What Colosseum Is
+
+  Colosseum is a Go TUI for managing parallel AI coding agents across tmux sessions.
+
+  Would you like to dive into any of these areas, or should I do a deeper code-level audit of a specific package?
+
+✻ Cooked for 42s
