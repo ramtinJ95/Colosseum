@@ -11,24 +11,40 @@ This document is meant to be a trustworthy handoff for the next agent. It reflec
 Colosseum is a Go + tmux + Bubble Tea workspace manager for running AI coding agents in parallel. The current product shape is:
 
 - A working tmux-backed dashboard and CLI for creating, listing, attaching to, and deleting workspaces
-- Real status detection via pane scraping with per-agent regex patterns tuned to current Claude and Codex terminal output
-- A supported new-workspace surface limited to `claude` and `codex`
+- Real status detection via pane scraping with per-agent regex patterns tuned to current Claude, Codex, and OpenCode terminal output
+- A supported new-workspace surface for `claude`, `codex`, and `opencode`
+- A real config surface loaded from `~/.config/colosseum/config.toml` for defaults, status polling, UI sizing, tmux behavior, keybindings, and theme colors
 - A shell-style path-completion flow in the new-workspace dialog
+- Config-driven theme propagation across the sidebar, preview, dialogs, and shared app styling
+- Config-driven sidebar navigation instead of hardcoded `j/k`
 - A deterministic tmux return path from attached workspaces back to the dashboard session that launched Colosseum
-- A still-unimplemented roadmap for worktrees, broadcast, notifications, diffing, and config
+- A still-unimplemented roadmap for worktrees, broadcast, notifications, and diffing
 
 ### Repo Metrics
 
 | Metric | Value |
 |--------|-------|
-| Go source files under `cmd/` + `internal/` | 44 |
-| Test files | 12 |
-| Test functions | 55 |
-| Go packages under `cmd/` + `internal/` | 10 |
+| Go source files under `cmd/` + `internal/` | 50 |
+| Test files | 16 |
+| Test functions | 71 |
+| Go packages under `cmd/` + `internal/` | 11 |
 | CLI subcommands | 4 (`new`, `list`, `attach`, `delete`) |
-| Fixture files | 24 `.txt` files |
+| Fixture files | 26 files |
 
 ### Recent Changes Since The Previous Handoff
+
+**Config/runtime wiring completed on `main` (2026-03-07)** — the previously introduced config surface is now actually honored at runtime:
+
+1. Startup now exits with a visible error when `~/.config/colosseum/config.toml` is unreadable or malformed instead of silently ignoring the file.
+2. Sidebar movement now uses configured `keys.up` / `keys.down` bindings via Bubbles `key.Binding` matching instead of hardcoded raw key strings.
+3. Theme config now propagates through the sidebar, preview, delete dialog, help dialog, and new-workspace dialog rather than stopping at the status bar.
+4. Theme primitives were expanded so tab styling and dialog borders also derive from config-backed theme state instead of ad hoc hardcoded colors.
+5. Regression coverage now asserts remapped sidebar navigation plus theme injection across sidebar, preview, and dialogs.
+6. Two follow-up gaps are intentionally left in `scratch/BACKLOG.md`:
+   - help text is still not generated from the effective configured keybindings
+   - duplicate keybinding conflicts are still not validated and can be shadowed by action-switch order
+
+These changes landed after the earlier config introduction commits that added `internal/config/` and wired config into the CLI/TUI startup path.
 
 **Status detection hardening (2026-03-07)** — researched cmux, agent-of-empires, hive, agent-deck, and claude-squad to learn how other tmux-based agent managers detect agent state. Applied four improvements:
 
@@ -42,7 +58,7 @@ Colosseum is a Go + tmux + Bubble Tea workspace manager for running AI coding ag
 
 These changes landed before the 2026-03-04 items below:
 
-1. New workspace creation is now intentionally restricted to `claude` and `codex`.
+1. New workspace creation is now intentionally restricted to `claude`, `codex`, and `opencode`.
 2. The new-workspace path field now behaves more like a shell:
    - live directory suggestions still update while typing
    - `Enter` advances/submits instead of implicitly accepting completion
@@ -84,12 +100,15 @@ The binary can currently:
 - Create pane layouts `agent`, `agent-shell`, or `agent-shell-logs`
 - Auto-launch the selected agent in the agent pane
 - Persist workspace state to `~/.config/colosseum/workspaces.json`
+- Load optional config from `~/.config/colosseum/config.toml` and fall back to defaults when the file is absent
+- Fail fast on malformed or unreadable config instead of silently ignoring it
 - Refresh and display live workspace status
 - Attach to an existing workspace tmux session
 - Return from an attached workspace to the dashboard session with `prefix+e`
 - Delete a workspace and clean up the tmux session
 - Preview agent, shell, or logs panes inside the dashboard
 - Offer shell-style path completion in the new-workspace dialog
+- Apply config-driven poll/capture settings, UI sizing, tmux behavior, keybindings, and theme colors
 
 The current supported agent surface for new workspaces is:
 
@@ -97,8 +116,8 @@ The current supported agent surface for new workspaces is:
 |-------|--------|
 | Claude Code | Supported for creation |
 | Codex CLI | Supported for creation |
+| OpenCode | Supported for creation |
 | Gemini | Legacy definition still registered, not supported for new workspace creation |
-| OpenCode | Legacy definition still registered, not supported for new workspace creation |
 | Aider | Legacy definition still registered, not supported for new workspace creation |
 
 The “legacy definition still registered” detail matters because existing saved workspaces using those agent types can still be read and status-detected, but the normal create flow will reject them.
@@ -128,7 +147,7 @@ The “legacy definition still registered” detail matters because existing sav
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Pluggable agent registry | **Done** | `Register`, `Get`, and `Available` still exist. |
-| Supported-agent surface | **Done** | `Supported()` / `IsSupported()` limit creation to `claude` and `codex`. |
+| Supported-agent surface | **Done** | `Supported()` / `IsSupported()` limit creation to `claude`, `codex`, and `opencode`. |
 | Legacy registry entries for 5 agents | **Done** | All five definitions are still registered for compatibility and detection. |
 | Per-agent binary and flags | **Done** | Definitions include binary, launch flags, yolo flags, and detection patterns. |
 | Per-agent status detection patterns | **Done** | Claude, Codex, Gemini, OpenCode, and Aider all have pattern definitions. |
@@ -198,20 +217,20 @@ The “legacy definition still registered” detail matters because existing sav
 | Sidebar + preview layout | **Done** | Main app composes sidebar and preview with lipgloss. |
 | Sidebar workspace list with status icons | **Done** | Includes branch and unread badge rendering. |
 | Preview panel | **Done** | Shows selected pane content, wraps long lines to viewport width, auto-scrolls to bottom on content updates, and refreshes on a timer. |
-| Pane tab bar | **Done** | `h` / `l` cycles pane tabs. |
+| Pane tab bar | **Done** | Defaults are `h` / `l`, but the actual pane-switch bindings are config-driven. |
 | New workspace dialog | **Done** | Name/path/branch inputs plus agent/layout selectors. |
 | Path autocomplete | **Done** | Live suggestions while typing, `Tab` expands/cycles shell-style, `Enter` advances/submits, `Up`/`Down` cycle, hint line rendered. |
 | Delete confirmation dialog | **Done** | Confirm delete flow exists. |
 | Help overlay | **Done** | Now distinguishes available vs unavailable shortcuts. |
 | Explicit unavailable-action feedback | **Done** | Pressing unavailable roadmap keys now sets a status-bar message instead of failing silently. |
-| Theme support beyond default | **Not Started** | Still only `DefaultTheme()`. |
+| Theme support beyond default | **Done** | Config-derived theme state now drives the sidebar, preview, dialogs, and shared app styling. |
 
 ### CLI Commands
 
 | Command | Status | Notes |
 |---------|--------|-------|
 | `colosseum` | **Done** | Launches the dashboard. |
-| `colosseum new` | **Done** | Supports only `claude` and `codex`; validates layout and agent support. |
+| `colosseum new` | **Done** | Supports `claude`, `codex`, and `opencode`; validates layout and agent support. |
 | `colosseum list` | **Done** | Refreshes live statuses before output. |
 | `colosseum attach` | **Done** | Switches into the workspace session and installs a `prefix+e` return binding back to the dashboard session you launched from. |
 | `colosseum delete` | **Done** | Works. |
@@ -222,33 +241,38 @@ The “legacy definition still registered” detail matters because existing sav
 
 | Key | Action | Status | Notes |
 |-----|--------|--------|-------|
-| `j/k` | Navigate workspace list | **Done** | Implemented. |
-| `h/l` | Switch preview pane tab | **Done** | Implemented. |
-| `Enter` | Attach to workspace | **Done** | Implemented. |
-| `n` | New workspace dialog | **Done** | Implemented. |
-| `d` | Delete workspace | **Done** | Implemented. |
-| `J` | Jump to next needing attention | **Done** | Implemented. |
-| `?` | Help overlay | **Done** | Implemented. |
-| `q` | Quit | **Done** | Implemented. |
+| `keys.up` / `keys.down` | Navigate workspace list | **Done** | Defaults are `k` / `j`, but the sidebar now uses the configured bindings. |
+| `keys.pane_left` / `keys.pane_right` | Switch preview pane tab | **Done** | Defaults are `h` / `l`; app-level handling is config-driven. |
+| `keys.enter` | Attach to workspace | **Done** | Default is `Enter`. |
+| `keys.new` | New workspace dialog | **Done** | Default is `n`. |
+| `keys.delete` | Delete workspace | **Done** | Default is `d`. |
+| `keys.jump_next` | Jump to next needing attention | **Done** | Default is `J`. |
+| `keys.help` | Help overlay | **Done** | Default is `?`. |
+| `keys.quit` | Quit | **Done** | Default is `q`, with `ctrl+c` retained as a fallback binding. |
 | `prefix+e` | Return from attached workspace to dashboard | **Done** | Installed when Colosseum switches the tmux client into a workspace session; targets the session that launched the dashboard. |
-| `b` | Broadcast prompt | **Unavailable** | No implementation yet; pressing it shows an unavailable message. |
-| `D` | Diff viewer | **Unavailable** | Same behavior. |
-| `r` | Rename workspace | **Unavailable** | Same behavior. |
-| `/` | Filter/search workspaces | **Unavailable** | Same behavior. |
-| `m` | Mark notifications read | **Unavailable** | Same behavior. |
-| `R` | Restart agent | **Unavailable** | Same behavior. |
-| `s` | Stop agent | **Unavailable** | Same behavior. |
+| `keys.broadcast` | Broadcast prompt | **Unavailable** | Default is `b`; pressing it shows an unavailable message. |
+| `keys.diff` | Diff viewer | **Unavailable** | Default is `D`; same behavior. |
+| `keys.rename` | Rename workspace | **Unavailable** | Default is `r`; same behavior. |
+| `keys.filter` | Filter/search workspaces | **Unavailable** | Default is `/`; same behavior. |
+| `keys.mark_read` | Mark notifications read | **Unavailable** | Default is `m`; same behavior. |
+| `keys.restart` | Restart agent | **Unavailable** | Default is `R`; same behavior. |
+| `keys.stop` | Stop agent | **Unavailable** | Default is `s`; same behavior. |
 
 ### Configuration
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| TOML config file | **Not Started** | No `internal/config/` package. |
-| Config-driven poll interval | **Not Started** | Poll interval is still hardcoded. |
-| Config-driven default agent/layout | **Not Started** | Defaults are still hardcoded. |
+| TOML config file | **Done** | `internal/config/` loads `~/.config/colosseum/config.toml` and merges it onto defaults. |
+| Config load failure surfacing | **Done** | Startup now exits with an actionable error when the config file is unreadable or malformed. |
+| Config-driven poll interval | **Done** | `status.poll_interval_ms` and `status.capture_lines` feed detector / poller setup. |
+| Config-driven default agent/layout | **Done** | `defaults.agent` and `defaults.layout` drive CLI defaults. |
+| Config-driven UI sizing/refresh | **Done** | `ui.preview_refresh_ms`, `ui.sidebar_min_width`, and `ui.sidebar_max_width` are wired into the TUI. |
+| Config-driven tmux behavior | **Done** | `tmux.session_prefix` and `tmux.return_key` are wired into workspace/tmux setup. |
+| Config-driven keybindings | **Done** | `keys.*` builds the app keymap, and sidebar navigation now honors remapped up/down keys. |
+| Config-driven theme colors | **Done** | `theme.*` now affects the sidebar, preview, dialogs, and shared app styling. |
 | Config-driven worktree settings | **Not Started** | Not implemented. |
 | Config-driven notification settings | **Not Started** | Not implemented. |
-| Config-driven theme name | **Not Started** | Not implemented. |
+| Config validation for duplicate key conflicts | **Not Started** | Conflicting key assignments are not rejected yet. |
 
 ---
 
@@ -256,14 +280,16 @@ The “legacy definition still registered” detail matters because existing sav
 
 1. `UnreadCount` is still dead state. The field exists and renders, but nothing updates it.
 2. YOLO flags exist in agent definitions, but there is still no code path that uses them.
-3. The roadmap features are still absent: worktrees, notifications, broadcast, diffing, restart/stop behavior, rename/filter/mark-read flows, and config.
-4. The project vision still references git worktrees, but the actual create path still just launches tmux sessions in an existing directory and stores branch metadata.
-5. The intentional supported create surface is only `claude` and `codex`, even though legacy definitions for Gemini/OpenCode/Aider remain registered.
-6. OpenCode and Aider status definitions still have no dedicated fixture coverage.
-7. Status detection is materially better after the 2026-03-07 hardening (ANSI stripping, tiered windows, spike/hysteresis, pane title signal), but it is still fundamentally heuristic and regex-driven. The most impactful next step would be **hook-based detection for Claude Code** — using Claude's native `settings.json` hooks (`PreToolUse`, `UserPromptSubmit`, `Stop`, `Notification`) to have Claude write its own state to a file, like agent-of-empires and cmux do. This eliminates the regex arms race entirely for Claude. See the research notes in the 2026-03-07 session for detailed implementation patterns from both projects.
-8. “Waiting” semantics are still only partially semantic. The current rule now treats prompt-plus-recent-question states as waiting, but there is still no protocol-level signal that cleanly separates “assistant asked a question in prose” from “assistant is truly blocked on user input.”
-9. The app still has two status-update authorities: the background poller and the direct refresh call used during initial TUI load. This is workable now, but still worth consolidating before larger event flows are added.
-10. The `PaneCapturer` interface now has two methods (`CapturePane`, `CapturePaneTitle`). This was the simplest approach — no other project in the research (cmux, AoE, hive, agent-deck, claude-squad) uses type assertions for optional tmux capabilities. Every concrete implementor needs both methods.
+3. Help text is still not generated from the effective configured keybindings, so remapped keys can work while the rendered shortcut legend remains stale.
+4. Duplicate keybinding conflicts are still not validated; if two actions share the same configured key, switch order decides which one wins.
+5. The roadmap features are still absent: worktrees, notifications, broadcast, diffing, restart/stop behavior, and rename/filter/mark-read flows.
+6. The project vision still references git worktrees, but the actual create path still just launches tmux sessions in an existing directory and stores branch metadata.
+7. The intentional supported create surface is `claude`, `codex`, and `opencode`, with legacy definitions for Gemini and Aider still registered.
+8. OpenCode detection patterns were aligned with agent-of-empires but still have no dedicated fixture coverage. Aider also lacks fixtures.
+9. Status detection is materially better after the 2026-03-07 hardening (ANSI stripping, tiered windows, spike/hysteresis, pane title signal), but it is still fundamentally heuristic and regex-driven. The most impactful next step would be **hook-based detection for Claude Code** — using Claude's native `settings.json` hooks (`PreToolUse`, `UserPromptSubmit`, `Stop`, `Notification`) to have Claude write its own state to a file, like agent-of-empires and cmux do. This eliminates the regex arms race entirely for Claude. See the research notes in the 2026-03-07 session for detailed implementation patterns from both projects.
+10. “Waiting” semantics are still only partially semantic. The current rule now treats prompt-plus-recent-question states as waiting, but there is still no protocol-level signal that cleanly separates “assistant asked a question in prose” from “assistant is truly blocked on user input.”
+11. The app still has two status-update authorities: the background poller and the direct refresh call used during initial TUI load. This is workable now, but still worth consolidating before larger event flows are added.
+12. The `PaneCapturer` interface now has two methods (`CapturePane`, `CapturePaneTitle`). This was the simplest approach — no other project in the research (cmux, AoE, hive, agent-deck, claude-squad) uses type assertions for optional tmux capabilities. Every concrete implementor needs both methods.
 
 Things that are no longer current issues and should not be re-raised as if unfixed:
 
@@ -307,8 +333,10 @@ If picking up from here, the best order is:
 5. **Implement restart/stop first among the unavailable TUI actions**
    - These are simpler than broadcast/diff/rename/filter and would convert placeholders into genuinely useful operational controls.
 
-6. **Add config loading**
-   - Poll interval, default agent, default layout, and theme selection are the obvious first values.
+6. **Finish the config UX instead of reopening the config plumbing**
+   - Generate help text from the effective configured keybindings.
+   - Validate duplicate key conflicts at load time.
+   - Consider a sample/default config file or `colosseum config init` flow once the surface stabilizes.
 
 ---
 
