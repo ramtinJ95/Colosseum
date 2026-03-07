@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ramtinj/colosseum/internal/agent"
+	"github.com/ramtinj/colosseum/internal/config"
 	"github.com/ramtinj/colosseum/internal/status"
 	"github.com/ramtinj/colosseum/internal/workspace"
 )
@@ -27,7 +28,7 @@ func TestPreviewRefreshMsgUpdatesSelectedPane(t *testing.T) {
 	capturer := &appTestCapturer{content: "first output"}
 	detector := status.NewDetector(capturer, 50)
 
-	app := NewApp(nil, nil, nil, detector)
+	app := NewApp(nil, nil, nil, detector, config.Default())
 	app.preview.SetSize(80, 20)
 	app.sidebar.SetWorkspaces([]workspace.Workspace{{
 		ID:        "ws-1",
@@ -56,7 +57,7 @@ func TestPreviewRefreshMsgSkipsRefreshOutsideNormalView(t *testing.T) {
 	capturer := &appTestCapturer{content: "initial output"}
 	detector := status.NewDetector(capturer, 50)
 
-	app := NewApp(nil, nil, nil, detector)
+	app := NewApp(nil, nil, nil, detector, config.Default())
 	app.preview.SetSize(80, 20)
 	app.sidebar.SetWorkspaces([]workspace.Workspace{{
 		ID:        "ws-1",
@@ -83,7 +84,7 @@ func TestPreviewRefreshMsgSkipsRefreshOutsideNormalView(t *testing.T) {
 }
 
 func TestSchedulePreviewRefreshReturnsTickCommand(t *testing.T) {
-	app := NewApp(nil, nil, nil, nil)
+	app := NewApp(nil, nil, nil, nil, config.Default())
 	cmd := app.schedulePreviewRefresh()
 	if cmd == nil {
 		t.Fatal("expected non-nil refresh command")

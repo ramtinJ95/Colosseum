@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ramtinj/colosseum/internal/agent"
+	"github.com/ramtinj/colosseum/internal/config"
 	"github.com/ramtinj/colosseum/internal/status"
 	"github.com/ramtinj/colosseum/internal/tui/dialog"
 	"github.com/ramtinj/colosseum/internal/tui/preview"
@@ -38,38 +39,42 @@ type previewRefreshMsg time.Time
 
 var paneOrder = []string{"agent", "shell", "logs"}
 
-const previewRefreshInterval = 750 * time.Millisecond
-
 type App struct {
-	state          viewState
-	sidebar        sidebar.Model
-	preview        preview.Model
-	newDialog      dialog.NewWorkspaceModel
-	delDialog      dialog.DeleteModel
-	helpDialog     dialog.HelpModel
-	keys           KeyMap
-	theme          theme.Theme
-	store          *workspace.Store
-	manager        *workspace.Manager
-	poller         *status.Poller
-	detector       *status.Detector
-	focusedPaneIdx int
-	statusBar      string
-	width          int
-	height         int
-	ready          bool
+	state              viewState
+	sidebar            sidebar.Model
+	preview            preview.Model
+	newDialog          dialog.NewWorkspaceModel
+	delDialog          dialog.DeleteModel
+	helpDialog         dialog.HelpModel
+	keys               KeyMap
+	theme              theme.Theme
+	store              *workspace.Store
+	manager            *workspace.Manager
+	poller             *status.Poller
+	detector           *status.Detector
+	previewRefreshInterval time.Duration
+	sidebarMinWidth    int
+	sidebarMaxWidth    int
+	focusedPaneIdx     int
+	statusBar          string
+	width              int
+	height             int
+	ready              bool
 }
 
-func NewApp(store *workspace.Store, manager *workspace.Manager, poller *status.Poller, detector *status.Detector) App {
+func NewApp(store *workspace.Store, manager *workspace.Manager, poller *status.Poller, detector *status.Detector, cfg config.Config) App {
 	return App{
-		sidebar:  sidebar.New(),
-		preview:  preview.New(),
-		keys:     DefaultKeyMap(),
-		theme:    theme.DefaultTheme(),
-		store:    store,
-		manager:  manager,
-		poller:   poller,
-		detector: detector,
+		sidebar:                sidebar.New(),
+		preview:                preview.New(),
+		keys:                   KeyMapFromConfig(cfg.Keys),
+		theme:                  theme.ThemeFromConfig(cfg.Theme),
+		store:                  store,
+		manager:                manager,
+		poller:                 poller,
+		detector:               detector,
+		previewRefreshInterval: time.Duration(cfg.UI.PreviewRefreshMS) * time.Millisecond,
+		sidebarMinWidth:        cfg.UI.SidebarMinWidth,
+		sidebarMaxWidth:        cfg.UI.SidebarMaxWidth,
 	}
 }
 
@@ -340,11 +345,11 @@ func (a App) placeOverlay(bg, overlay string) string {
 
 func (a *App) layoutPanels() {
 	sidebarWidth := a.width / 3
-	if sidebarWidth < 30 {
-		sidebarWidth = 30
+	if sidebarWidth < a.sidebarMinWidth {
+		sidebarWidth = a.sidebarMinWidth
 	}
-	if sidebarWidth > 50 {
-		sidebarWidth = 50
+	if sidebarWidth > a.sidebarMaxWidth {
+		sidebarWidth = a.sidebarMaxWidth
 	}
 	previewWidth := a.width - sidebarWidth
 	contentHeight := a.height - 2
@@ -431,7 +436,7 @@ func (a App) listenForUpdates() tea.Cmd {
 }
 
 func (a App) schedulePreviewRefresh() tea.Cmd {
-	return tea.Tick(previewRefreshInterval, func(t time.Time) tea.Msg {
+	return tea.Tick(a.previewRefreshInterval, func(t time.Time) tea.Msg {
 		return previewRefreshMsg(t)
 	})
 }
