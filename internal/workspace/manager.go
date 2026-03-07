@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +23,18 @@ type Manager struct {
 	store         *Store
 	sessions      SessionCreator
 	sessionPrefix string
+}
+
+type BroadcastFailure struct {
+	WorkspaceID    string
+	WorkspaceTitle string
+	Err            error
+}
+
+type BroadcastResult struct {
+	Requested int
+	Delivered []string
+	Failed    []BroadcastFailure
 }
 
 func NewManager(store *Store, sessions SessionCreator, prefix string) *Manager {
@@ -155,4 +168,66 @@ func (m *Manager) SwitchTo(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+func (m *Manager) Broadcast(ctx context.Context, prompt string, workspaceIDs []string) (BroadcastResult, error) {
+	if strings.TrimSpace(prompt) == "" {
+		return BroadcastResult{}, fmt.Errorf("broadcast prompt cannot be empty")
+	}
+	if len(workspaceIDs) == 0 {
+		return BroadcastResult{}, fmt.Errorf("broadcast requires at least one workspace")
+	}
+
+	workspaces, err := m.store.List()
+	if err != nil {
+		return BroadcastResult{}, fmt.Errorf("listing workspaces: %w", err)
+	}
+
+	byID := make(map[string]Workspace, len(workspaces))
+	for _, ws := range workspaces {
+		byID[ws.ID] = ws
+	}
+
+	seen := make(map[string]struct{}, len(workspaceIDs))
+	result := BroadcastResult{}
+
+	for _, id := range workspaceIDs {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result.Requested++
+
+		ws, ok := byID[id]
+		if !ok {
+			result.Failed = append(result.Failed, BroadcastFailure{
+				WorkspaceID: id,
+				Err:         fmt.Errorf("workspace not found"),
+			})
+			continue
+		}
+
+		agentPane := ws.PaneTargets["agent"]
+		if agentPane == "" {
+			result.Failed = append(result.Failed, BroadcastFailure{
+				WorkspaceID:    ws.ID,
+				WorkspaceTitle: ws.Title,
+				Err:            fmt.Errorf("workspace has no agent pane"),
+			})
+			continue
+		}
+
+		if err := m.sessions.SendKeys(ctx, agentPane, prompt); err != nil {
+			result.Failed = append(result.Failed, BroadcastFailure{
+				WorkspaceID:    ws.ID,
+				WorkspaceTitle: ws.Title,
+				Err:            fmt.Errorf("send prompt: %w", err),
+			})
+			continue
+		}
+
+		result.Delivered = append(result.Delivered, ws.Title)
+	}
+
+	return result, nil
 }

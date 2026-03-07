@@ -25,6 +25,7 @@ const (
 	viewNormal viewState = iota
 	viewNewWorkspace
 	viewDeleteConfirm
+	viewBroadcast
 	viewHelp
 )
 
@@ -35,6 +36,7 @@ type errMsg struct{ err error }
 type workspaceCreatedMsg struct{ ws *workspace.Workspace }
 
 type workspaceDeletedMsg struct{ id string }
+type broadcastCompletedMsg struct{ result workspace.BroadcastResult }
 type previewRefreshMsg time.Time
 
 var paneOrder = []string{"agent", "shell", "logs"}
@@ -45,6 +47,7 @@ type App struct {
 	preview                preview.Model
 	newDialog              dialog.NewWorkspaceModel
 	delDialog              dialog.DeleteModel
+	broadcastDialog        dialog.BroadcastModel
 	helpDialog             dialog.HelpModel
 	keys                   KeyMap
 	theme                  theme.Theme
@@ -97,6 +100,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.height = msg.Height
 		a.ready = true
 		a.layoutPanels()
+		if a.state == viewBroadcast {
+			a.broadcastDialog.SetSize(a.width, a.height)
+		}
 		return a, nil
 
 	case errMsg:
@@ -140,6 +146,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.statusBar = "Workspace deleted"
 		cmds = append(cmds, a.loadWorkspaces)
 		return a, tea.Batch(cmds...)
+
+	case broadcastCompletedMsg:
+		a.statusBar = formatBroadcastStatus(msg.result)
+		return a, nil
 	}
 
 	switch a.state {
@@ -147,6 +157,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.updateNewDialog(msg)
 	case viewDeleteConfirm:
 		return a.updateDeleteDialog(msg)
+	case viewBroadcast:
+		return a.updateBroadcastDialog(msg)
 	case viewHelp:
 		return a.updateHelpDialog(msg)
 	default:
@@ -194,8 +206,18 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 
 		case key.Matches(msg, a.keys.Broadcast):
-			a.statusBar = unavailableFeatureStatus("Broadcast prompt")
-			return a, nil
+			if len(a.sidebar.Workspaces) == 0 {
+				a.statusBar = "No workspaces available for broadcast"
+				return a, nil
+			}
+			selectedID := ""
+			if ws := a.sidebar.SelectedWorkspace(); ws != nil {
+				selectedID = ws.ID
+			}
+			a.state = viewBroadcast
+			a.broadcastDialog = dialog.NewBroadcast(a.sidebar.Workspaces, selectedID).WithTheme(a.theme)
+			a.broadcastDialog.SetSize(a.width, a.height)
+			return a, a.broadcastDialog.Init()
 
 		case key.Matches(msg, a.keys.Diff):
 			a.statusBar = unavailableFeatureStatus("Diff viewer")
@@ -295,6 +317,23 @@ func (a App) updateDeleteDialog(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
+func (a App) updateBroadcastDialog(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case dialog.BroadcastCancelMsg:
+		a.state = viewNormal
+		a.statusBar = ""
+		return a, nil
+	case dialog.BroadcastSubmitMsg:
+		a.state = viewNormal
+		a.statusBar = "Broadcasting prompt..."
+		return a, a.broadcastPrompt(msg)
+	}
+
+	var cmd tea.Cmd
+	a.broadcastDialog, cmd = a.broadcastDialog.Update(msg)
+	return a, cmd
+}
+
 func (a App) updateHelpDialog(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg.(type) {
 	case dialog.HelpCloseMsg:
@@ -329,6 +368,9 @@ func (a App) View() string {
 		view = a.placeOverlay(view, overlay)
 	case viewDeleteConfirm:
 		overlay := a.delDialog.View()
+		view = a.placeOverlay(view, overlay)
+	case viewBroadcast:
+		overlay := a.broadcastDialog.View()
 		view = a.placeOverlay(view, overlay)
 	case viewHelp:
 		overlay := a.helpDialog.View()
@@ -494,4 +536,37 @@ func (a App) switchToWorkspace(id string) tea.Cmd {
 		}
 		return nil
 	}
+}
+
+func (a App) broadcastPrompt(msg dialog.BroadcastSubmitMsg) tea.Cmd {
+	return func() tea.Msg {
+		result, err := a.manager.Broadcast(context.Background(), msg.Prompt, msg.WorkspaceIDs)
+		if err != nil {
+			return errMsg{err: fmt.Errorf("broadcast prompt: %w", err)}
+		}
+		return broadcastCompletedMsg{result: result}
+	}
+}
+
+func formatBroadcastStatus(result workspace.BroadcastResult) string {
+	delivered := len(result.Delivered)
+	failed := len(result.Failed)
+
+	switch {
+	case delivered > 0 && failed == 0:
+		return fmt.Sprintf("Broadcast sent to %d workspace%s", delivered, pluralize(delivered))
+	case delivered > 0 && failed > 0:
+		return fmt.Sprintf("Broadcast sent to %d workspace%s (%d failed)", delivered, pluralize(delivered), failed)
+	case failed > 0:
+		return fmt.Sprintf("Broadcast failed for %d workspace%s", failed, pluralize(failed))
+	default:
+		return "Broadcast did not target any workspaces"
+	}
+}
+
+func pluralize(count int) string {
+	if count == 1 {
+		return ""
+	}
+	return "s"
 }

@@ -69,6 +69,7 @@ func (m Model) ShortHelp() string {
 		t.HelpKey.Render("h/l") + t.HelpDesc.Render(" pane"),
 		t.HelpKey.Render("enter") + t.HelpDesc.Render(" attach"),
 		t.HelpKey.Render("n") + t.HelpDesc.Render(" new"),
+		t.HelpKey.Render("b") + t.HelpDesc.Render(" broadcast"),
 		t.HelpKey.Render("?") + t.HelpDesc.Render(" help"),
 		t.HelpKey.Render("q") + t.HelpDesc.Render(" quit"),
 	}
