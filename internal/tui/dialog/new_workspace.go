@@ -154,14 +154,6 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 				m.layoutIndex = (m.layoutIndex + 1) % len(m.layouts)
 				return m, nil
 			}
-
-		case m.focusIndex == int(fieldPath) && key.Matches(msg, m.keys.Down):
-			m.cyclePathSuggestions(1)
-			return m, nil
-
-		case m.focusIndex == int(fieldPath) && key.Matches(msg, m.keys.Up):
-			m.cyclePathSuggestions(-1)
-			return m, nil
 		}
 	}
 
@@ -273,34 +265,6 @@ func (m *NewWorkspaceModel) completePathShellStyle() {
 	m.setPathValue(matches[0])
 }
 
-func (m *NewWorkspaceModel) cyclePathSuggestions(step int) {
-	current := m.inputs[fieldPath].Value()
-	if m.pathCycle.canContinue(current) {
-		m.pathCycle.index = (m.pathCycle.index + step + len(m.pathCycle.matches)) % len(m.pathCycle.matches)
-		m.setPathValue(m.pathCycle.matches[m.pathCycle.index])
-		return
-	}
-
-	m.refreshPathSuggestions()
-	matches := append([]string(nil), m.inputs[fieldPath].MatchedSuggestions()...)
-	if len(matches) == 0 {
-		m.resetPathCycle()
-		return
-	}
-
-	index := 0
-	if step < 0 {
-		index = len(matches) - 1
-	}
-
-	m.pathCycle = pathCycleState{
-		baseValue: current,
-		matches:   matches,
-		index:     index,
-	}
-	m.setPathValue(matches[index])
-}
-
 func (m *NewWorkspaceModel) setPathValue(value string) {
 	m.inputs[fieldPath].SetValue(value)
 	m.inputs[fieldPath].CursorEnd()
@@ -371,11 +335,9 @@ func (m NewWorkspaceModel) View() string {
 	rows = append(rows, fmt.Sprintf("%s %s", layoutLabel, renderChoices(t, layoutStrings(m.layouts), m.layoutIndex, m.focusIndex == selectorLayout)))
 
 	help := t.Dim.Render(fmt.Sprintf(
-		"  %s: complete path  %s: next/create  %s/%s: cycle matches  %s/%s: select  %s: cancel",
+		"  %s: complete path  %s: next/create  %s/%s: select  %s: cancel",
 		bindingLabel(m.keys.Tab),
 		bindingLabel(m.keys.Enter),
-		bindingLabel(m.keys.Up),
-		bindingLabel(m.keys.Down),
 		bindingLabel(m.keys.SelectPrev),
 		bindingLabel(m.keys.SelectNext),
 		bindingLabel(m.keys.Cancel),
