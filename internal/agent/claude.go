@@ -17,7 +17,6 @@ func init() {
 		WorkingPatterns: []*regexp.Regexp{
 			regexp.MustCompile(`\(esc to interrupt\)`),
 			BrailleSpinner,
-			regexp.MustCompile(`(?m)^\s*✻\s+\w+\s+for\s+\d+`),
 			regexp.MustCompile(`\(th(?:inking|ought)\b`),
 			regexp.MustCompile(`\(ctrl\+o to expand\)`),
 		},
