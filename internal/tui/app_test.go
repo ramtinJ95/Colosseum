@@ -120,3 +120,33 @@ func TestConfiguredSidebarKeysMoveSelection(t *testing.T) {
 		t.Fatalf("cursor after configured up key = %d, want 0", updated.sidebar.Cursor)
 	}
 }
+
+func TestBroadcastDialogInheritsConfiguredKeymap(t *testing.T) {
+	cfg := config.Default()
+	cfg.Keys.Tab = "x"
+	cfg.Keys.Up = "w"
+	cfg.Keys.Down = "s"
+
+	app := NewApp(nil, nil, nil, nil, cfg)
+	app.width = 120
+	app.height = 40
+	app.ready = true
+	app.sidebar.SetWorkspaces([]workspace.Workspace{
+		{ID: "ws-1", Title: "one", AgentType: agent.Claude},
+		{ID: "ws-2", Title: "two", AgentType: agent.Codex},
+	})
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+	updated := model.(App)
+	if updated.state != viewBroadcast {
+		t.Fatalf("state after broadcast key = %v, want viewBroadcast", updated.state)
+	}
+
+	view := updated.broadcastDialog.View()
+	if !strings.Contains(view, "x: switch focus") {
+		t.Fatalf("view = %q, want configured tab key help", view)
+	}
+	if !strings.Contains(view, "w/s: move") {
+		t.Fatalf("view = %q, want configured movement key help", view)
+	}
+}

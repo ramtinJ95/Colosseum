@@ -215,7 +215,14 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 				selectedID = ws.ID
 			}
 			a.state = viewBroadcast
-			a.broadcastDialog = dialog.NewBroadcast(a.sidebar.Workspaces, selectedID).WithTheme(a.theme)
+			a.broadcastDialog = dialog.NewBroadcast(a.sidebar.Workspaces, selectedID).
+				WithTheme(a.theme).
+				WithKeyMap(dialog.BroadcastKeyMap{
+					Up:    a.keys.Up,
+					Down:  a.keys.Down,
+					Tab:   a.keys.Tab,
+					Enter: a.keys.Enter,
+				})
 			a.broadcastDialog.SetSize(a.width, a.height)
 			return a, a.broadcastDialog.Init()
 
