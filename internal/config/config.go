@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	toml "github.com/pelletier/go-toml/v2"
 )
@@ -160,5 +161,55 @@ func Load(path string) (Config, error) {
 		return cfg, fmt.Errorf("parsing config %s: %w", path, err)
 	}
 
+	if err := validate(cfg); err != nil {
+		return cfg, fmt.Errorf("validating config %s: %w", path, err)
+	}
+
 	return cfg, nil
+}
+
+func validate(cfg Config) error {
+	return validateKeyBindings(cfg.Keys)
+}
+
+func validateKeyBindings(keys KeysConfig) error {
+	type binding struct {
+		name string
+		key  string
+	}
+
+	bindings := []binding{
+		{name: "keys.up", key: keys.Up},
+		{name: "keys.down", key: keys.Down},
+		{name: "keys.enter", key: keys.Enter},
+		{name: "keys.new", key: keys.New},
+		{name: "keys.delete", key: keys.Delete},
+		{name: "keys.pane_left", key: keys.PaneLeft},
+		{name: "keys.pane_right", key: keys.PaneRight},
+		{name: "keys.broadcast", key: keys.Broadcast},
+		{name: "keys.diff", key: keys.Diff},
+		{name: "keys.rename", key: keys.Rename},
+		{name: "keys.filter", key: keys.Filter},
+		{name: "keys.tab", key: keys.Tab},
+		{name: "keys.mark_read", key: keys.MarkRead},
+		{name: "keys.jump_next", key: keys.JumpNext},
+		{name: "keys.restart", key: keys.Restart},
+		{name: "keys.stop", key: keys.Stop},
+		{name: "keys.help", key: keys.Help},
+		{name: "keys.quit", key: keys.Quit},
+	}
+
+	owners := make(map[string]string, len(bindings))
+	for _, binding := range bindings {
+		key := strings.TrimSpace(binding.key)
+		if key == "" {
+			continue
+		}
+		if owner, exists := owners[key]; exists {
+			return fmt.Errorf("duplicate key binding %q assigned to %s and %s", key, owner, binding.name)
+		}
+		owners[key] = binding.name
+	}
+
+	return nil
 }

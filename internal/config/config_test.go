@@ -178,3 +178,24 @@ func TestLoadInvalidTOML(t *testing.T) {
 		t.Fatal("expected error for invalid TOML, got nil")
 	}
 }
+
+func TestLoadRejectsDuplicateKeyBindings(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+
+	content := `[keys]
+up = "w"
+new = "w"
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write test config: %v", err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected duplicate key binding error, got nil")
+	}
+	if got := err.Error(); got != `validating config `+path+`: duplicate key binding "w" assigned to keys.up and keys.new` {
+		t.Fatalf("error = %q", got)
+	}
+}
