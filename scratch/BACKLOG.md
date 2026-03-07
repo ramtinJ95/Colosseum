@@ -1,0 +1,4 @@
+# BACKLOG
+
+- Codex status detection is still regex-coupled to transient CLI chrome. The live Codex pane format has already drifted past the fixture set once, which let `Unknown` and stale preview behavior slip through. Add a lightweight workflow for capturing fresh real-pane samples per supported agent/version and refreshing `testdata/fixtures/` before releases.
+- Align the documented/dashboard keybindings with the actual shipped TUI behavior. `README.md` presents `b`, `D`, `r`, `/`, `m`, `R`, and `s` as active actions, but [`internal/tui/app.go`](/home/ramtinj/personal-workspace/Colosseum/internal/tui/app.go) currently routes them to `unavailableFeatureStatus(...)`, and [`internal/tui/dialog/help.go`](/home/ramtinj/personal-workspace/Colosseum/internal/tui/dialog/help.go) lists them as unavailable. Either implement the actions or narrow the product surface in the docs/help copy.
