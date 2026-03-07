@@ -32,5 +32,5 @@ func init() {
 		os.Exit(1)
 	}
 
-	rootCmd.AddCommand(newNewCmd(), newListCmd(), newAttachCmd(), newDeleteCmd())
+	rootCmd.AddCommand(newNewCmd(), newListCmd(), newAttachCmd(), newBroadcastCmd(), newDeleteCmd())
 }
