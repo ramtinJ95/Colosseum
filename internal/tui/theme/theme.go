@@ -3,6 +3,7 @@ package theme
 import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ramtinj/colosseum/internal/agent"
+	"github.com/ramtinj/colosseum/internal/config"
 )
 
 type Theme struct {
@@ -27,25 +28,29 @@ type Theme struct {
 }
 
 func DefaultTheme() Theme {
+	return ThemeFromConfig(config.Default().Theme)
+}
+
+func ThemeFromConfig(tc config.ThemeConfig) Theme {
 	return Theme{
-		AppTitle:      lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")),
-		SidebarBorder: lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")),
-		PreviewBorder: lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")),
-		SelectedItem:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Background(lipgloss.Color("236")),
-		NormalItem:    lipgloss.NewStyle().Foreground(lipgloss.Color("252")),
-		StatusWorking: lipgloss.NewStyle().Foreground(lipgloss.Color("82")),
-		StatusWaiting: lipgloss.NewStyle().Foreground(lipgloss.Color("220")),
-		StatusIdle:    lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
-		StatusStopped: lipgloss.NewStyle().Foreground(lipgloss.Color("240")),
-		StatusError:   lipgloss.NewStyle().Foreground(lipgloss.Color("196")),
-		StatusUnknown: lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
-		BranchName:    lipgloss.NewStyle().Foreground(lipgloss.Color("109")),
-		AgentName:     lipgloss.NewStyle().Foreground(lipgloss.Color("140")),
-		UnreadBadge:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("220")),
-		PreviewTitle:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Padding(0, 1),
-		HelpKey:       lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")),
-		HelpDesc:      lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
-		Dim:           lipgloss.NewStyle().Foreground(lipgloss.Color("240")),
+		AppTitle:      lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(tc.AppTitle)),
+		SidebarBorder: lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(tc.Border)),
+		PreviewBorder: lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(tc.Border)),
+		SelectedItem:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(tc.SelectedFG)).Background(lipgloss.Color(tc.SelectedBG)),
+		NormalItem:    lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Normal)),
+		StatusWorking: lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Working)),
+		StatusWaiting: lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Waiting)),
+		StatusIdle:    lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Idle)),
+		StatusStopped: lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Stopped)),
+		StatusError:   lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Error)),
+		StatusUnknown: lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Idle)),
+		BranchName:    lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Branch)),
+		AgentName:     lipgloss.NewStyle().Foreground(lipgloss.Color(tc.AgentName)),
+		UnreadBadge:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(tc.Waiting)),
+		PreviewTitle:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(tc.AppTitle)).Padding(0, 1),
+		HelpKey:       lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(tc.HelpKey)),
+		HelpDesc:      lipgloss.NewStyle().Foreground(lipgloss.Color(tc.HelpDesc)),
+		Dim:           lipgloss.NewStyle().Foreground(lipgloss.Color(tc.Dim)),
 	}
 }
 
