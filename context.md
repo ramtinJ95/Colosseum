@@ -92,16 +92,16 @@ Newest and most focused: a Claude Code-only session manager that uses Claude Cod
 
 | Approach | Used By | Pros | Cons |
 |----------|---------|------|------|
-| **Screen scraping** (tmux capture-pane + regex) | claude-squad, AoE, Colosseum (planned) | Agent-agnostic, no agent cooperation needed | Brittle with terminal resize, agent UI changes, false positives from code containing trigger strings |
+| **Screen scraping** (tmux capture-pane + regex) | claude-squad, AoE, Colosseum | Agent-agnostic, no agent cooperation needed | Brittle with terminal resize, agent UI changes, false positives from code containing trigger strings |
 | **Hook-based events** (agent writes events via hooks) | Cove | Reliable, no false positives, low overhead | Agent-specific (only Claude Code has hooks), requires `cove init` setup step |
 
-Colosseum's design combines both: screen scraping as the universal fallback, with optional Claude Code hook integration for higher-fidelity detection.
+Colosseum currently ships with screen scraping for status detection and leaves Claude Code hook integration as future hardening work.
 
 ### Session Architecture: Two Models
 
 | Model | Used By | Pros | Cons |
 |-------|---------|------|------|
-| **Separate tmux sessions** per workspace | claude-squad, AoE, Colosseum (planned) | Full isolation, independent layouts, survives TUI crash | More tmux sessions to manage |
+| **Separate tmux sessions** per workspace | claude-squad, AoE, Colosseum | Full isolation, independent layouts, survives TUI crash | More tmux sessions to manage |
 | **Single session group** with windows | Cove | Simpler mental model, unified session | All windows share session settings, less isolation |
 
 ### Git Worktree Strategies
@@ -112,17 +112,17 @@ Colosseum's design combines both: screen scraping as the universal fallback, wit
 | Outer-nested (`<repo>-worktrees/<branch>/`) | craigsc/cmux (option) | Next to repo, avoids `.gitignore` issues |
 | Sibling (`<repo>-<branch>/`) | craigsc/cmux (option) | Flat structure |
 | Bare repo pattern | AoE (recommended) | `.bare/` + worktrees at repo root, cleanest for heavy worktree use |
-| Template-based (`../{repo}-worktrees/{branch}`) | Colosseum (planned) | Configurable, user chooses pattern |
+| Template-based (`../{repo}-worktrees/{branch}`) | Colosseum (roadmap) | Configurable, user chooses pattern |
 
 ### Feature Matrix
 
 | Feature | claude-squad | AoE | cmux (manaflow) | cmux (craigsc) | Cove | **Colosseum** |
 |---------|:---:|:---:|:---:|:---:|:---:|:---:|
-| Multi-agent support | 4+ | 6 | Any | Claude only | Claude only | **5 planned** |
-| Status detection | Scrape | Scrape | OSC escape | None | Hooks | **Scrape + hooks** |
-| Git worktrees | Yes | Yes | No | Yes | Detect only | **Yes** |
+| Multi-agent support | 4+ | 6 | Any | Claude only | Claude only | **3 for new workspaces today** |
+| Status detection | Scrape | Scrape | OSC escape | None | Hooks | **Scrape today, hooks planned** |
+| Git worktrees | Yes | Yes | No | Yes | Detect only | **Roadmap, not shipped** |
 | Broadcast prompt | No | No | No | No | No | **Yes** |
-| Diff viewer | No | Yes | No | No | No | **Yes** |
+| Diff viewer | No | Yes | No | No | No | **Roadmap, not shipped** |
 | Desktop notifications | No | Sound | macOS native | No | No | **notify-send** |
 | Docker sandbox | No | Yes | No | No | No | No |
 | Embedded browser | No | No | Yes | No | No | No |
@@ -132,19 +132,19 @@ Colosseum's design combines both: screen scraping as the universal fallback, wit
 
 ## Where Colosseum Fits
 
-Colosseum occupies a specific niche: a **Go-based, terminal-agnostic, tmux-native TUI** that combines the best patterns from the ecosystem while adding capabilities no existing tool has:
+Colosseum occupies a specific niche: a **Go-based, tmux-native TUI** for managing parallel agent sessions today while leaving worktree orchestration and richer comparison tooling on the roadmap:
 
-1. **Broadcast prompt** -- the killer feature. No other tool lets you send the same prompt to N agents working on N worktrees and compare results. This enables "competition-style" agent evaluation (hence the name "Colosseum").
+1. **Broadcast prompt** -- the standout shipped differentiator. Colosseum can send the same prompt to multiple existing tmux-backed workspaces from one dashboard.
 
 2. **Hybrid status detection** -- screen scraping for universal agent support + Claude Code hooks for high-fidelity detection when available. Best of both worlds.
 
-3. **Diff viewer** -- only AoE has this among the competitors. Colosseum's planned side-by-side diff with file navigation is essential for the broadcast-and-compare workflow.
+3. **Diff viewer** -- only AoE has this among the competitors. Colosseum does not ship this yet, but it remains a logical roadmap follow-on for the broadcast-and-compare workflow.
 
 4. **Go + Bubble Tea** -- same language choice as claude-squad (the most popular tool), benefiting from the mature charmbracelet TUI ecosystem. Unlike the Rust tools (AoE, Cove), Go's compilation speed and simpler toolchain lower contributor friction.
 
 5. **Linux-first** -- cmux (manaflow) is macOS-only. Colosseum targets Linux as the primary platform with `notify-send` integration.
 
-6. **Separate tmux sessions** per workspace (like claude-squad/AoE, unlike Cove) for full isolation, with the TUI running in its own `colo-ctrl` session.
+6. **Separate tmux sessions** per workspace (like claude-squad/AoE, unlike Cove) for full isolation, with the TUI running in its own dashboard session.
 
 ## Key Technical Decisions for Colosseum
 

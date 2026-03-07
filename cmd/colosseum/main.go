@@ -27,7 +27,7 @@ func main() {
 var rootCmd = &cobra.Command{
 	Use:   "colosseum",
 	Short: "AI agent workspace manager",
-	Long:  "A TUI for managing parallel AI coding agents across git worktrees, built on tmux.",
+	Long:  "A tmux-native TUI for managing parallel AI coding agent workspaces.",
 	RunE:  runDashboard,
 }
 
