@@ -8,9 +8,13 @@ func init() {
 		Binary:      "codex",
 		LaunchFlags: []string{},
 		YoloFlags:   []string{"--approval-mode", "full-auto"},
+		IgnorePatterns: []*regexp.Regexp{
+			regexp.MustCompile(`(?i)^\s*(~?/|/).*[·•].*\d+% left.*used\s*$`),
+		},
 		WorkingPatterns: []*regexp.Regexp{
 			BrailleSpinner,
-			regexp.MustCompile(`(?i)(thinking|generating|processing)`),
+			regexp.MustCompile(`(?i)(thinking|generating|processing|working)`),
+			regexp.MustCompile(`(?i)\(.*esc to interrupt.*\)`),
 		},
 		WaitingPatterns: []*regexp.Regexp{
 			regexp.MustCompile(`(?i)(approve|deny|explain)`),
@@ -18,10 +22,12 @@ func init() {
 		},
 		IdlePatterns: []*regexp.Regexp{
 			CommonPromptChars,
+			regexp.MustCompile(`^\s*[❯›>].*$`),
 		},
 		ErrorPatterns: []*regexp.Regexp{
 			RateLimitPattern,
 			PanicPattern,
+			AuthErrorPattern,
 		},
 	})
 }
