@@ -226,3 +226,19 @@ func TestConfiguredHelpOverlayUsesCurrentBindings(t *testing.T) {
 		t.Fatalf("view = %q, want configured close bindings", view)
 	}
 }
+
+func TestAttachStatusBarUsesConfiguredReturnKey(t *testing.T) {
+	cfg := config.Default()
+	cfg.Tmux.ReturnKey = "g"
+
+	app := NewApp(nil, nil, nil, nil, cfg)
+	app.sidebar.SetWorkspaces([]workspace.Workspace{
+		{ID: "ws-1", Title: "one", AgentType: agent.Claude},
+	})
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated := model.(App)
+	if !strings.Contains(updated.statusBar, "prefix+g returns to dashboard") {
+		t.Fatalf("status bar = %q, want configured return key", updated.statusBar)
+	}
+}
