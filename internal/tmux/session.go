@@ -7,17 +7,19 @@ import (
 )
 
 const defaultSessionPrefix = "colo-"
-const dashboardReturnKey = "e"
+const defaultReturnKey = "e"
 
 type Client struct {
 	Commander     Commander
 	SessionPrefix string
+	ReturnKey     string
 }
 
 func NewClient(cmdr Commander) *Client {
 	return &Client{
 		Commander:     cmdr,
 		SessionPrefix: defaultSessionPrefix,
+		ReturnKey:     defaultReturnKey,
 	}
 }
 
@@ -74,7 +76,7 @@ func (c *Client) SwitchClient(ctx context.Context, name string) error {
 		"bind-key",
 		"-N", "Colosseum dashboard",
 		"-T", "prefix",
-		dashboardReturnKey,
+		c.ReturnKey,
 		"switch-client",
 		"-t", dashboardSession,
 	); err != nil {
