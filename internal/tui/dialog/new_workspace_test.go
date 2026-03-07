@@ -109,19 +109,10 @@ func TestEnterEmitsExpandedHomePath(t *testing.T) {
 	}
 }
 
-func TestConfiguredDownCyclesPathSuggestions(t *testing.T) {
-	root := t.TempDir()
-	alpha := filepath.Join(root, "project-alpha") + "/"
-	beta := filepath.Join(root, "project-beta") + "/"
-	for _, dir := range []string{alpha, beta} {
-		if err := os.Mkdir(dir, 0o755); err != nil {
-			t.Fatalf("mkdir %s: %v", dir, err)
-		}
-	}
-
+func TestConfiguredNavigationKeysStillTypeInPathField(t *testing.T) {
 	model := newFocusedPathModel().WithKeyMap(NewWorkspaceKeyMap{
-		Up:         key.NewBinding(key.WithKeys("w")),
-		Down:       key.NewBinding(key.WithKeys("s")),
+		Up:         key.NewBinding(key.WithKeys("k")),
+		Down:       key.NewBinding(key.WithKeys("j")),
 		Enter:      key.NewBinding(key.WithKeys("enter")),
 		Tab:        key.NewBinding(key.WithKeys("tab")),
 		BackTab:    key.NewBinding(key.WithKeys("shift+tab")),
@@ -129,17 +120,15 @@ func TestConfiguredDownCyclesPathSuggestions(t *testing.T) {
 		SelectPrev: key.NewBinding(key.WithKeys("a")),
 		SelectNext: key.NewBinding(key.WithKeys("d")),
 	})
-	model.inputs[fieldPath].SetValue(filepath.Join(root, "project-"))
-	model.refreshPathSuggestions()
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
-	if got := updated.inputs[fieldPath].Value(); got != alpha {
-		t.Fatalf("first down value = %q, want %q", got, alpha)
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if got := updated.inputs[fieldPath].Value(); got != "j" {
+		t.Fatalf("path value after j = %q, want %q", got, "j")
 	}
 
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
-	if got := updated.inputs[fieldPath].Value(); got != beta {
-		t.Fatalf("second down value = %q, want %q", got, beta)
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	if got := updated.inputs[fieldPath].Value(); got != "jk" {
+		t.Fatalf("path value after k = %q, want %q", got, "jk")
 	}
 }
 
