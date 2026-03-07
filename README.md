@@ -112,14 +112,8 @@ Kills the tmux session and removes the workspace from state.
 | `n` | New workspace |
 | `d` | Delete workspace |
 | `b` | Broadcast prompt |
-| `D` | Diff viewer |
-| `r` | Rename workspace |
-| `/` | Filter workspaces |
 | `Tab` | Cycle sidebar sections |
-| `m` | Mark notifications read |
 | `J` | Jump to next workspace needing attention |
-| `R` | Restart agent |
-| `s` | Stop agent |
 | `?` | Help |
 | `q` | Quit |
 
