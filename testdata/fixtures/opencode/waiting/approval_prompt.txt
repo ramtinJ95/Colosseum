@@ -1,0 +1,3 @@
+Proceed with the migration? [y/n]
+
+>

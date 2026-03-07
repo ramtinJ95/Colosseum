@@ -29,6 +29,14 @@ func TestDetectFromContent_Fixtures(t *testing.T) {
 		{agent.Gemini, "gemini/waiting", agent.StatusWaiting},
 		{agent.Gemini, "gemini/idle", agent.StatusIdle},
 		{agent.Gemini, "gemini/error", agent.StatusError},
+		{agent.OpenCode, "opencode/working", agent.StatusWorking},
+		{agent.OpenCode, "opencode/waiting", agent.StatusWaiting},
+		{agent.OpenCode, "opencode/idle", agent.StatusIdle},
+		{agent.OpenCode, "opencode/error", agent.StatusError},
+		{agent.Aider, "aider/working", agent.StatusWorking},
+		{agent.Aider, "aider/waiting", agent.StatusWaiting},
+		{agent.Aider, "aider/idle", agent.StatusIdle},
+		{agent.Aider, "aider/error", agent.StatusError},
 	}
 
 	for _, tt := range tests {

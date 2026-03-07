@@ -37,6 +37,7 @@ go test ./internal/status -run TestDetectFromContent -count=1
 
 - `claude`: at least one current `working`, `waiting`, and `idle` sample
 - `codex`: at least one current `working`, `waiting`, and `idle` sample
-- `opencode`: capture samples whenever the surface changes or support is being expanded
+- `opencode`: keep at least one `working`, `waiting`, `idle`, and `error` sample current
+- `aider`: keep at least one `working`, `waiting`, `idle`, and `error` sample current
 
-OpenCode, Aider, and any future agent surface should get dedicated fixture coverage before their status rules are considered stable.
+Any future agent surface should get dedicated fixture coverage before its status rules are considered stable.
