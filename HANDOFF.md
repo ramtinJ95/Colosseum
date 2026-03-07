@@ -18,7 +18,7 @@ Colosseum is a Go + tmux + Bubble Tea workspace manager for running AI coding ag
 - Config-driven theme propagation across the sidebar, preview, dialogs, and shared app styling
 - Config-driven sidebar navigation instead of hardcoded `j/k`
 - A deterministic tmux return path from attached workspaces back to the dashboard session that launched Colosseum
-- A still-unimplemented roadmap for worktrees, broadcast, notifications, and diffing
+- A still-unimplemented roadmap for worktrees, notifications, and diffing
 
 ### Repo Metrics
 
@@ -197,9 +197,9 @@ The “legacy definition still registered” detail matters because existing sav
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Broadcast dialog | **Not Started** | No dialog, model, or dispatch logic exists. |
-| Multi-select target picker | **Not Started** | No component exists. |
-| Prompt fan-out via tmux | **Not Started** | `SendKeys` exists, but no broadcast orchestration uses it. |
+| Broadcast dialog | **Done** | TUI dialog exists for selecting targets and entering a prompt. |
+| Multi-select target picker | **Done** | The dialog supports per-workspace toggles plus select-all behavior. |
+| Prompt fan-out via tmux | **Done** | Broadcast dispatch fans prompts out to each selected workspace's agent pane. |
 | CLI `broadcast` command | **Not Started** | Not registered. |
 
 ### Diff Viewer
@@ -250,7 +250,7 @@ The “legacy definition still registered” detail matters because existing sav
 | `keys.help` | Help overlay | **Done** | Default is `?`. |
 | `keys.quit` | Quit | **Done** | Default is `q`, with `ctrl+c` retained as a fallback binding. |
 | `prefix+e` | Return from attached workspace to dashboard | **Done** | Installed when Colosseum switches the tmux client into a workspace session; targets the session that launched the dashboard. |
-| `keys.broadcast` | Broadcast prompt | **Unavailable** | Default is `b`; pressing it shows an unavailable message. |
+| `keys.broadcast` | Broadcast prompt | **Done** | Default is `b`; opens the broadcast dialog and dispatches prompts to selected workspaces. |
 | `keys.diff` | Diff viewer | **Unavailable** | Default is `D`; same behavior. |
 | `keys.rename` | Rename workspace | **Unavailable** | Default is `r`; same behavior. |
 | `keys.filter` | Filter/search workspaces | **Unavailable** | Default is `/`; same behavior. |
@@ -282,7 +282,7 @@ The “legacy definition still registered” detail matters because existing sav
 2. YOLO flags exist in agent definitions, but there is still no code path that uses them.
 3. Help text is still not generated from the effective configured keybindings, so remapped keys can work while the rendered shortcut legend remains stale.
 4. Duplicate keybinding conflicts are still not validated; if two actions share the same configured key, switch order decides which one wins.
-5. The roadmap features are still absent: worktrees, notifications, broadcast, diffing, restart/stop behavior, and rename/filter/mark-read flows.
+5. The roadmap features are still absent: worktrees, notifications, diffing, restart/stop behavior, and rename/filter/mark-read flows.
 6. The project vision still references git worktrees, but the actual create path still just launches tmux sessions in an existing directory and stores branch metadata.
 7. The intentional supported create surface is `claude`, `codex`, and `opencode`, with legacy definitions for Gemini and Aider still registered.
 8. OpenCode detection patterns were aligned with agent-of-empires but still have no dedicated fixture coverage. Aider also lacks fixtures.
