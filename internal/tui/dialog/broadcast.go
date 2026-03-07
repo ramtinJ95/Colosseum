@@ -240,25 +240,25 @@ func (m BroadcastModel) View() string {
 		promptView = m.prompt.View()
 	}
 
-	moveKeys := fmt.Sprintf("%s/%s", bindingLabel(m.keys.Up), bindingLabel(m.keys.Down))
-	toggleKey := bindingLabel(m.keys.Enter)
+	moveKeys := fmt.Sprintf("%s/%s", BindingLabel(m.keys.Up), BindingLabel(m.keys.Down))
+	toggleKey := BindingLabel(m.keys.Enter)
 
 	help := t.Dim.Render(fmt.Sprintf(
 		"  %s: switch focus  %s: move  %s/%s: toggle target  %s: toggle all  %s: send  %s: cancel",
-		bindingLabel(m.keys.Tab),
+		BindingLabel(m.keys.Tab),
 		moveKeys,
-		bindingLabel(m.keys.ToggleTarget),
+		BindingLabel(m.keys.ToggleTarget),
 		toggleKey,
-		bindingLabel(m.keys.ToggleAll),
-		bindingLabel(m.keys.Submit),
-		bindingLabel(m.keys.Cancel),
+		BindingLabel(m.keys.ToggleAll),
+		BindingLabel(m.keys.Submit),
+		BindingLabel(m.keys.Cancel),
 	))
 	if m.focus == broadcastFocusPrompt {
 		help = t.Dim.Render(fmt.Sprintf(
 			"  %s: switch focus  enter: newline  %s: send  %s: cancel",
-			bindingLabel(m.keys.Tab),
-			bindingLabel(m.keys.Submit),
-			bindingLabel(m.keys.Cancel),
+			BindingLabel(m.keys.Tab),
+			BindingLabel(m.keys.Submit),
+			BindingLabel(m.keys.Cancel),
 		))
 	}
 

@@ -82,12 +82,11 @@ func newBinding(keyName, desc string) key.Binding {
 	)
 }
 
-func bindingLabel(binding key.Binding) string {
-	keys := binding.Keys()
-	if len(keys) > 0 {
-		return strings.Join(keys, "/")
+func BindingLabel(binding key.Binding) string {
+	if label := binding.Help().Key; label != "" {
+		return label
 	}
-	return binding.Help().Key
+	return strings.Join(binding.Keys(), "/")
 }
 
 func joinKeyLabels(labels ...string) string {

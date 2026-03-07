@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
+	"github.com/ramtinj/colosseum/internal/tui/dialog"
 	"github.com/ramtinj/colosseum/internal/tui/theme"
 )
 
@@ -12,7 +12,7 @@ func (m Model) View() string {
 	t := m.theme
 
 	if len(m.Workspaces) == 0 {
-		empty := t.Dim.Render(fmt.Sprintf("  No workspaces yet.\n  Press '%s' to create one.", bindingLabel(m.newKey)))
+		empty := t.Dim.Render(fmt.Sprintf("  No workspaces yet.\n  Press '%s' to create one.", dialog.BindingLabel(m.newKey)))
 		return t.SidebarBorder.Width(m.Width).Height(m.Height).Render(
 			t.AppTitle.Render(" WORKSPACES") + "\n\n" + empty,
 		)
@@ -57,9 +57,3 @@ func (m Model) View() string {
 	return style.Render(content)
 }
 
-func bindingLabel(binding key.Binding) string {
-	if label := binding.Help().Key; label != "" {
-		return label
-	}
-	return strings.Join(binding.Keys(), "/")
-}
