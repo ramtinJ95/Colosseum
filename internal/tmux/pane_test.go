@@ -2,6 +2,7 @@ package tmux
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -93,6 +94,39 @@ func TestSendKeys(t *testing.T) {
 	}
 	assertArgs(t, mock.Calls[0].Args, []string{"send-keys", "-t", "%3", "-l", "ls -la"})
 	assertArgs(t, mock.Calls[1].Args, []string{"send-keys", "-t", "%3", "Enter"})
+}
+
+func TestSendKeysUsesPasteBufferForMultilineInput(t *testing.T) {
+	mock := NewMockCommander(
+		MockResponse{Output: "", Err: nil},
+		MockResponse{Output: "", Err: nil},
+		MockResponse{Output: "", Err: nil},
+	)
+	client := NewClient(mock)
+
+	err := client.SendKeys(context.Background(), "%3", "line1\nline2")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(mock.Calls) != 3 {
+		t.Fatalf("expected 3 tmux calls, got %d", len(mock.Calls))
+	}
+
+	setBufferArgs := mock.Calls[0].Args
+	if len(setBufferArgs) != 5 {
+		t.Fatalf("unexpected set-buffer args: %v", setBufferArgs)
+	}
+	if setBufferArgs[0] != "set-buffer" || setBufferArgs[1] != "-b" {
+		t.Fatalf("unexpected set-buffer prefix: %v", setBufferArgs[:2])
+	}
+	if !strings.HasPrefix(setBufferArgs[2], "colosseum-") {
+		t.Fatalf("buffer name = %q, want colosseum-*", setBufferArgs[2])
+	}
+	assertArgs(t, setBufferArgs[3:], []string{"--", "line1\nline2"})
+
+	assertArgs(t, mock.Calls[1].Args, []string{"paste-buffer", "-d", "-p", "-r", "-b", setBufferArgs[2], "-t", "%3"})
+	assertArgs(t, mock.Calls[2].Args, []string{"send-keys", "-t", "%3", "Enter"})
 }
 
 func TestSendLiteralKeys(t *testing.T) {

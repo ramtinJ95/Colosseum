@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 )
 
 type PaneInfo struct {
@@ -54,6 +55,9 @@ func (c *Client) CapturePaneTitle(ctx context.Context, target string) (string, e
 }
 
 func (c *Client) SendKeys(ctx context.Context, target string, keys string) error {
+	if strings.Contains(keys, "\n") {
+		return c.pasteBuffer(ctx, target, keys)
+	}
 	if _, err := c.Commander.Run(ctx, "send-keys", "-t", target, "-l", keys); err != nil {
 		return fmt.Errorf("send keys to %q: %w", target, err)
 	}
@@ -67,6 +71,20 @@ func (c *Client) SendLiteralKeys(ctx context.Context, target string, text string
 	_, err := c.Commander.Run(ctx, "send-keys", "-t", target, "-l", text)
 	if err != nil {
 		return fmt.Errorf("send literal keys to %q: %w", target, err)
+	}
+	return nil
+}
+
+func (c *Client) pasteBuffer(ctx context.Context, target string, text string) error {
+	bufferName := fmt.Sprintf("colosseum-%d", time.Now().UnixNano())
+	if _, err := c.Commander.Run(ctx, "set-buffer", "-b", bufferName, "--", text); err != nil {
+		return fmt.Errorf("set paste buffer for %q: %w", target, err)
+	}
+	if _, err := c.Commander.Run(ctx, "paste-buffer", "-d", "-p", "-r", "-b", bufferName, "-t", target); err != nil {
+		return fmt.Errorf("paste buffer into %q: %w", target, err)
+	}
+	if _, err := c.Commander.Run(ctx, "send-keys", "-t", target, "Enter"); err != nil {
+		return fmt.Errorf("send enter to %q: %w", target, err)
 	}
 	return nil
 }
