@@ -22,8 +22,9 @@ func init() {
 		},
 		WaitingPatterns: []*regexp.Regexp{
 			regexp.MustCompile(`(?i)(yes,?\s*allow|allow\s*(once|always))`),
-			regexp.MustCompile(`(?i)(do you want|would you like|should i|shall i)`),
 			regexp.MustCompile(`(?i)permission`),
+			ChoiceMenuPattern,
+			ChoicePromptPattern,
 		},
 		IdlePatterns: []*regexp.Regexp{
 			regexp.MustCompile(`^>\s*$`),

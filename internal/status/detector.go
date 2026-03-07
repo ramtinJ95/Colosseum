@@ -10,8 +10,7 @@ import (
 )
 
 var (
-	brailleRange      = regexp.MustCompile(`[\x{2800}-\x{28FF}]`)
-	questionEndsLine  = regexp.MustCompile(`\?\s*$`)
+	brailleRange = regexp.MustCompile(`[\x{2800}-\x{28FF}]`)
 )
 
 type PaneCapturer interface {
@@ -94,12 +93,6 @@ func DetectFromContent(content string, def *agent.AgentDef) agent.Status {
 		// agent is waiting on the user, not merely idle at a fresh prompt.
 		if isPromptOnly(bottom[0]) {
 			if matchesAny(recent, def.WaitingPatterns) {
-				return agent.StatusWaiting
-			}
-			// Catch natural-language questions ("Do you have...?") that
-			// aren't covered by the specific WaitingPatterns. Safe here
-			// because the window is only the 3 lines above the prompt.
-			if matchesAnyLine(recent, []*regexp.Regexp{questionEndsLine}) {
 				return agent.StatusWaiting
 			}
 		}

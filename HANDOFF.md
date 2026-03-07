@@ -49,7 +49,7 @@ These changes landed after the earlier config introduction commits that added `i
 15. **Pane title detection**: `PaneCapturer` interface extended with `CapturePaneTitle()`. Claude Code sets braille spinner chars (U+2800-U+28FF) in the tmux pane title while working. Used as a supplementary Working signal that upgrades `StatusUnknown` only — never overrides Idle/Waiting/Error (title is sticky and may not be cleared after a crash).
 16. **Spike/hysteresis filtering**: Poller now requires non-urgent states to persist for 1s (spike window) before confirming a transition, with a 500ms minimum hold on the current state (hysteresis). Urgent statuses (Waiting, Error, Stopped) and initial detection bypass both filters. Configurable via `WithSpikeWindow()`/`WithHysteresisWindow()` options.
 17. **Tiered window narrowing**: In the non-idle detection path, Waiting patterns check only the last 10 lines (not all 30). Working and Error still check all 30. This matches hive (15 lines) and agent-deck (tiered 15/10/5/3/1).
-18. **Tighter waiting patterns**: Removed broad `\?\s*$` from Claude and Codex `WaitingPatterns` (no other project uses such a vague pattern). The question-mark check is preserved only in the idle path's 3-line window for catching natural-language questions at the prompt.
+18. **Tighter waiting patterns**: Removed broad natural-language question heuristics from Claude/Codex waiting detection. Explicit approval menus and choice prompts still resolve to `Waiting`, but generic prose questions at the prompt now fall back to `Idle`/`Unknown` instead of looking blocked.
 19. **Race fix**: `mockCapturer` in poller tests now uses `sync.Mutex` and `SetContent()` for safe concurrent access — confirmed clean with `go test -race`.
 
 These changes landed before the 2026-03-04 items below:
@@ -82,7 +82,7 @@ These changes landed before the 2026-03-04 items below:
     - Codex now recognizes current `Working (... esc to interrupt)` output and current footer lines
     - Claude now recognizes current `✻ Cooked for ...` activity lines and current footer/status-bar lines
     - a bottom prompt can now resolve to `Working`, `Waiting`, or `Idle` based on immediately recent lines
-    - prompt-plus-recent-question states are now treated as `Waiting` consistently across Claude and Codex
+    - explicit choice/approval states still resolve to `Waiting`, but generic prose questions no longer do
 12. Fixture coverage and tests were expanded to cover the current live Claude/Codex pane formats plus preview wrapping.
 
 ---
@@ -156,8 +156,8 @@ The “legacy definition still registered” detail matters because existing sav
 |---------|--------|-------|
 | Background polling | **Done** | `Poller.Run` emits status updates on an interval. |
 | ANSI stripping | **Done** | `StripANSI()` in `normalize.go` strips escape sequences before pattern matching. |
-| Per-agent regex detection | **Done** | Bottom prompt lines now resolve contextually: visible recent work keeps `Working`, visible recent question/choice state yields `Waiting`, otherwise prompt-only falls back to `Idle`. |
-| Tiered window narrowing | **Done** | 30-line window for Working/Error, 10-line window for Waiting in non-idle path, 3-line window for idle-path question detection. |
+| Per-agent regex detection | **Done** | Bottom prompt lines now resolve contextually: visible recent work keeps `Working`, explicit approval/choice prompts yield `Waiting`, otherwise prompt-only falls back to `Idle`. |
+| Tiered window narrowing | **Done** | 30-line window for Working/Error and a narrower recent window for Waiting in the non-idle path. |
 | Pane title detection | **Done** | Braille in tmux pane title upgrades `Unknown` → `Working`. Does not override `Idle` (title is sticky). |
 | Spike/hysteresis filtering | **Done** | 1s spike + 500ms hysteresis prevents flicker. Urgent states (Waiting/Error/Stopped) bypass. Configurable via `WithSpikeWindow`/`WithHysteresisWindow`. |
 | Current Claude/Codex CLI drift coverage | **Done** | Detection rules now cover current Claude `✻ Cooked for ...` lines, current Claude footer chrome, current Codex `Working (... esc to interrupt)` lines, and current Codex footer chrome. |
@@ -281,7 +281,7 @@ The “legacy definition still registered” detail matters because existing sav
 5. The intentional supported create surface is `claude`, `codex`, and `opencode`, with legacy definitions for Gemini and Aider still registered.
 6. OpenCode detection patterns were aligned with agent-of-empires but still have no dedicated fixture coverage. Aider also lacks fixtures.
 7. Status detection is materially better after the 2026-03-07 hardening (ANSI stripping, tiered windows, spike/hysteresis, pane title signal), but it is still fundamentally heuristic and regex-driven. The most impactful next step would be **hook-based detection for Claude Code** — using Claude's native `settings.json` hooks (`PreToolUse`, `UserPromptSubmit`, `Stop`, `Notification`) to have Claude write its own state to a file, like agent-of-empires and cmux do. This eliminates the regex arms race entirely for Claude. See the research notes in the 2026-03-07 session for detailed implementation patterns from both projects.
-8. “Waiting” semantics are still only partially semantic. The current rule now treats prompt-plus-recent-question states as waiting, but there is still no protocol-level signal that cleanly separates “assistant asked a question in prose” from “assistant is truly blocked on user input.”
+8. “Waiting” semantics are still only partially semantic. The current rule is stricter now, but there is still no protocol-level signal that cleanly separates “assistant asked a question in prose” from “assistant is truly blocked on user input.”
 9. The app still has two status-update authorities: the background poller and the direct refresh call used during initial TUI load. This is workable now, but still worth consolidating before larger event flows are added.
 10. The `PaneCapturer` interface now has two methods (`CapturePane`, `CapturePaneTitle`). This was the simplest approach — no other project in the research (cmux, AoE, hive, agent-deck, claude-squad) uses type assertions for optional tmux capabilities. Every concrete implementor needs both methods.
 

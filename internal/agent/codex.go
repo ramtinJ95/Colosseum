@@ -19,8 +19,8 @@ func init() {
 		WaitingPatterns: []*regexp.Regexp{
 			regexp.MustCompile(`(?i)(approve|deny|explain)`),
 			regexp.MustCompile(`(?i)(yes|no|edit)\s*$`),
-			regexp.MustCompile(`(?i)(do you want|would you like|should i|shall i)`),
-			regexp.MustCompile(`(?i)(which .* prefer|what .* want to tackle|how would you like)`),
+			ChoiceMenuPattern,
+			ChoicePromptPattern,
 		},
 		IdlePatterns: []*regexp.Regexp{
 			CommonPromptChars,

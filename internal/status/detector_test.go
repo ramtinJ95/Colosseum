@@ -18,6 +18,7 @@ func TestDetectFromContent_Fixtures(t *testing.T) {
 	}{
 		{agent.Claude, "claude/working", agent.StatusWorking},
 		{agent.Claude, "claude/waiting", agent.StatusWaiting},
+		{agent.Claude, "claude/unknown", agent.StatusUnknown},
 		{agent.Claude, "claude/idle", agent.StatusIdle},
 		{agent.Claude, "claude/error", agent.StatusError},
 		{agent.Codex, "codex/working", agent.StatusWorking},
@@ -116,23 +117,33 @@ func TestDetectFromContent_WorkingBeforePromptBottomWins(t *testing.T) {
 	}
 }
 
-func TestDetectFromContent_PromptWithRecentQuestionMeansWaitingForClaude(t *testing.T) {
+func TestDetectFromContent_PromptWithRecentQuestionStaysIdleForClaude(t *testing.T) {
 	def, _ := agent.Get(agent.Claude)
 
 	content := "● I didn't do an independent analysis of what would matter most to you as a user.\nDo you have a different sense of what's most valuable?\n\n❯"
 	got := DetectFromContent(content, def)
-	if got != agent.StatusWaiting {
-		t.Errorf("prompt with recent question should be Waiting, got %s", got)
+	if got != agent.StatusIdle {
+		t.Errorf("prompt with recent prose question should be Idle, got %s", got)
 	}
 }
 
-func TestDetectFromContent_PromptWithRecentQuestionMeansWaitingForCodex(t *testing.T) {
+func TestDetectFromContent_PromptWithRecentQuestionStaysIdleForCodex(t *testing.T) {
 	def, _ := agent.Get(agent.Codex)
 
 	content := "• I have enough now.\nWould you like me to do a deeper code-level audit of a specific package?\n\n›"
 	got := DetectFromContent(content, def)
+	if got != agent.StatusIdle {
+		t.Errorf("prompt with recent prose question should be Idle, got %s", got)
+	}
+}
+
+func TestDetectFromContent_PromptWithExplicitChoiceStillWaits(t *testing.T) {
+	def, _ := agent.Get(agent.Claude)
+
+	content := "1. Sliding window\n2. Refresh token\n\nWhich approach would you prefer?\n\n❯"
+	got := DetectFromContent(content, def)
 	if got != agent.StatusWaiting {
-		t.Errorf("prompt with recent question should be Waiting, got %s", got)
+		t.Errorf("explicit choice prompt should be Waiting, got %s", got)
 	}
 }
 
