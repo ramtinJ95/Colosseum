@@ -272,7 +272,7 @@ The “legacy definition still registered” detail matters because existing sav
 | Config-driven theme colors | **Done** | `theme.*` now affects the sidebar, preview, dialogs, and shared app styling. |
 | Config-driven worktree settings | **Not Started** | Not implemented. |
 | Config-driven notification settings | **Not Started** | Not implemented. |
-| Config validation for duplicate key conflicts | **Not Started** | Conflicting key assignments are not rejected yet. |
+| Config validation for duplicate key conflicts | **Done** | Config load now rejects conflicting key assignments before the TUI can shadow one action with another. |
 
 ---
 
@@ -281,7 +281,6 @@ The “legacy definition still registered” detail matters because existing sav
 1. `UnreadCount` is still dead state. The field exists and renders, but nothing updates it.
 2. YOLO flags exist in agent definitions, but there is still no code path that uses them.
 3. Help text is still not generated from the effective configured keybindings, so remapped keys can work while the rendered shortcut legend remains stale.
-4. Duplicate keybinding conflicts are still not validated; if two actions share the same configured key, switch order decides which one wins.
 5. The roadmap features are still absent: worktrees, notifications, diffing, restart/stop behavior, and rename/filter/mark-read flows.
 6. The project vision still references git worktrees, but the actual create path still just launches tmux sessions in an existing directory and stores branch metadata.
 7. The intentional supported create surface is `claude`, `codex`, and `opencode`, with legacy definitions for Gemini and Aider still registered.
