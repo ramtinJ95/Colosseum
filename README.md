@@ -1,6 +1,6 @@
 # Colosseum
 
-A terminal-agnostic TUI for managing parallel AI coding agents across git worktrees, built on tmux and Go.
+A tmux-native TUI for managing parallel AI coding agent workspaces, built on tmux and Go.
 
 ```
 ┌─ tmux session: "dashboard" (the TUI you launched) ────────────────┐
@@ -70,7 +70,7 @@ colosseum new my-feature --path ~/projects/myapp --agent claude --branch feat/au
 |------|-------|---------|-------------|
 | `--path` | `-p` | `.` | Project directory |
 | `--agent` | `-a` | `claude` | Agent type: `claude`, `codex` |
-| `--branch` | `-b` | | Git branch name |
+| `--branch` | `-b` | | Optional branch label stored in workspace metadata |
 | `--layout` | `-l` | `agent-shell` | Pane layout: `agent`, `agent-shell`, `agent-shell-logs` |
 
 This creates a tmux session named `colo-my-feature` with panes arranged per the chosen layout.
