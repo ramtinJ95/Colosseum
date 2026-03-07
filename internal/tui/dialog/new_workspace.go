@@ -44,10 +44,17 @@ type NewWorkspaceModel struct {
 	focusIndex  int
 	agentIndex  int
 	layoutIndex int
+	pathCycle   pathCycleState
 	agents      []agent.AgentType
 	layouts     []workspace.LayoutType
 	Width       int
 	Height      int
+}
+
+type pathCycleState struct {
+	baseValue string
+	matches   []string
+	index     int
 }
 
 func NewNewWorkspace() NewWorkspaceModel {
@@ -87,7 +94,8 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 			return m, func() tea.Msg { return NewWorkspaceCancelMsg{} }
 
 		case "tab":
-			if m.focusIndex == int(fieldPath) && m.acceptPathSuggestion() {
+			if m.focusIndex == int(fieldPath) {
+				m.completePathShellStyle()
 				return m, nil
 			}
 			m.focusIndex = (m.focusIndex + 1) % totalFields
@@ -100,9 +108,6 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 			return m, nil
 
 		case "enter":
-			if m.focusIndex == int(fieldPath) && m.acceptPathSuggestion() {
-				return m, nil
-			}
 			if m.focusIndex < totalFields-1 {
 				m.focusIndex++
 				m.updateFocus()
@@ -116,6 +121,7 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 			if path == "" {
 				path = "."
 			}
+			path = expandPathValue(path)
 			return m, func() tea.Msg {
 				return NewWorkspaceMsg{
 					Name:      name,
@@ -150,6 +156,9 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 		var cmd tea.Cmd
 		m.inputs[m.focusIndex], cmd = m.inputs[m.focusIndex].Update(msg)
 		if m.focusIndex == int(fieldPath) {
+			if _, ok := msg.(tea.KeyMsg); ok {
+				m.resetPathCycle()
+			}
 			m.refreshPathSuggestions()
 		}
 		return m, cmd
@@ -215,17 +224,65 @@ func (m *NewWorkspaceModel) refreshPathSuggestions() {
 	m.inputs[fieldPath].SetSuggestions(suggestions)
 }
 
-func (m *NewWorkspaceModel) acceptPathSuggestion() bool {
+func (m *NewWorkspaceModel) completePathShellStyle() {
 	current := m.inputs[fieldPath].Value()
-	suggestion := m.inputs[fieldPath].CurrentSuggestion()
-	if suggestion == "" || suggestion == current {
-		return false
+	if m.pathCycle.canContinue(current) {
+		m.pathCycle.index = (m.pathCycle.index + 1) % len(m.pathCycle.matches)
+		m.setPathValue(m.pathCycle.matches[m.pathCycle.index])
+		return
 	}
 
-	m.inputs[fieldPath].SetValue(suggestion)
+	m.refreshPathSuggestions()
+	matches := append([]string(nil), m.inputs[fieldPath].MatchedSuggestions()...)
+	if len(matches) == 0 {
+		m.resetPathCycle()
+		return
+	}
+
+	commonPrefix := longestSharedPrefix(matches)
+	if len(commonPrefix) > len(current) {
+		m.setPathValue(commonPrefix)
+		m.resetPathCycle()
+		return
+	}
+
+	if len(matches) == 1 {
+		m.setPathValue(matches[0])
+		m.resetPathCycle()
+		return
+	}
+
+	m.pathCycle = pathCycleState{
+		baseValue: current,
+		matches:   matches,
+		index:     0,
+	}
+	m.setPathValue(matches[0])
+}
+
+func (m *NewWorkspaceModel) setPathValue(value string) {
+	m.inputs[fieldPath].SetValue(value)
 	m.inputs[fieldPath].CursorEnd()
 	m.refreshPathSuggestions()
-	return true
+}
+
+func (m *NewWorkspaceModel) resetPathCycle() {
+	m.pathCycle = pathCycleState{}
+}
+
+func (s pathCycleState) canContinue(current string) bool {
+	if len(s.matches) < 2 {
+		return false
+	}
+	if current == s.baseValue {
+		return true
+	}
+	for _, match := range s.matches {
+		if current == match {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *NewWorkspaceModel) updateFocus() {
@@ -272,7 +329,7 @@ func (m NewWorkspaceModel) View() string {
 	}
 	rows = append(rows, fmt.Sprintf("%s %s", layoutLabel, renderChoices(layoutStrings(m.layouts), m.layoutIndex, m.focusIndex == selectorLayout)))
 
-	help := t.Dim.Render("  tab/enter: accept path, next/create  up/down: cycle matches  h/l: select  esc: cancel")
+	help := t.Dim.Render("  tab: complete path  enter: next/create  up/down: cycle matches  h/l: select  esc: cancel")
 
 	content := title + "\n\n" + strings.Join(rows, "\n") + "\n\n" + help
 
@@ -335,4 +392,37 @@ func renderPathSuggestionHint(t theme.Theme, input textinput.Model) string {
 		hint += t.Dim.Render(fmt.Sprintf("  (%d matches)", len(matches)))
 	}
 	return hint
+}
+
+func longestSharedPrefix(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+
+	prefix := []rune(values[0])
+	for _, value := range values[1:] {
+		runes := []rune(value)
+		limit := min(len(prefix), len(runes))
+		i := 0
+		for i < limit && prefix[i] == runes[i] {
+			i++
+		}
+		prefix = prefix[:i]
+		if len(prefix) == 0 {
+			return ""
+		}
+	}
+	return string(prefix)
+}
+
+func expandPathValue(value string) string {
+	if value == "~" || strings.HasPrefix(value, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			if value == "~" {
+				return home
+			}
+			return filepath.Join(home, value[2:])
+		}
+	}
+	return value
 }
