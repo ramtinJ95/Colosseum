@@ -22,6 +22,9 @@ func init() {
 			regexp.MustCompile(`❯\s*[123]\.`),
 			regexp.MustCompile(`^\s*>{1,2}\s*$`),
 		},
+		IdlePatterns: []*regexp.Regexp{
+			regexp.MustCompile(`^\s*>{1,2}\s*$`),
+		},
 		ErrorPatterns: []*regexp.Regexp{
 			RateLimitPattern,
 			PanicPattern,
