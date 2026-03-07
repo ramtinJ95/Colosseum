@@ -51,6 +51,7 @@ type App struct {
 	helpDialog             dialog.HelpModel
 	keys                   KeyMap
 	keyConfig              config.KeysConfig
+	returnKey              string
 	theme                  theme.Theme
 	store                  *workspace.Store
 	manager                *workspace.Manager
@@ -70,10 +71,11 @@ func NewApp(store *workspace.Store, manager *workspace.Manager, poller *status.P
 	appTheme := theme.ThemeFromConfig(cfg.Theme)
 	keys := KeyMapFromConfig(cfg.Keys)
 	return App{
-		sidebar:                sidebar.New().WithTheme(appTheme).WithNavigationKeys(keys.Up, keys.Down),
-		preview:                preview.New().WithTheme(appTheme),
+		sidebar:                sidebar.New().WithTheme(appTheme).WithNavigationKeys(keys.Up, keys.Down).WithNewKey(keys.New),
+		preview:                preview.New().WithTheme(appTheme).WithTabHelp(combineBindingLabels(keys.PaneLeft, keys.PaneRight) + ": switch pane"),
 		keys:                   keys,
 		keyConfig:              cfg.Keys,
+		returnKey:              cfg.Tmux.ReturnKey,
 		theme:                  appTheme,
 		store:                  store,
 		manager:                manager,
@@ -202,7 +204,15 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, a.keys.Help):
 			a.state = viewHelp
-			a.helpDialog = dialog.NewHelp().WithTheme(a.theme)
+			a.helpDialog = dialog.NewHelp().
+				WithTheme(a.theme).
+				WithItems(
+					availableHelpItems(a.keys, a.returnKey),
+					unavailableHelpItems(a.keys),
+					a.keys.Help,
+					a.keys.Quit,
+					key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "close")),
+				)
 			return a, nil
 
 		case key.Matches(msg, a.keys.JumpNext):
@@ -363,7 +373,7 @@ func (a App) View() string {
 	previewView := a.preview.View()
 	main := lipgloss.JoinHorizontal(lipgloss.Top, sidebarView, previewView)
 
-	helpBar := a.sidebar.ShortHelp()
+	helpBar := renderShortHelp(a.theme, a.keys)
 	if a.statusBar != "" {
 		helpBar = a.theme.StatusWaiting.Render(a.statusBar) + "  " + helpBar
 	}

@@ -17,6 +17,7 @@ type Model struct {
 	Width     int
 	Height    int
 	ready     bool
+	tabHelp   string
 	theme     theme.Theme
 }
 
@@ -66,6 +67,11 @@ func (m *Model) SetContent(title, content string) {
 
 func (m Model) WithTheme(t theme.Theme) Model {
 	m.theme = t
+	return m
+}
+
+func (m Model) WithTabHelp(tabHelp string) Model {
+	m.tabHelp = tabHelp
 	return m
 }
 

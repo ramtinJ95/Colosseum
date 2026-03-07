@@ -40,5 +40,5 @@ func (m Model) renderTabs(t theme.Theme) string {
 		}
 	}
 
-	return " " + strings.Join(parts, " ") + "  " + t.Dim.Render("h/l: switch pane")
+	return " " + strings.Join(parts, " ") + "  " + t.Dim.Render(m.tabHelp)
 }

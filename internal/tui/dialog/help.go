@@ -3,16 +3,25 @@ package dialog
 import (
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ramtinj/colosseum/internal/tui/theme"
 )
 
 type HelpCloseMsg struct{}
 
+type HelpItem struct {
+	Key  string
+	Desc string
+}
+
 type HelpModel struct {
-	Width  int
-	Height int
-	theme  theme.Theme
+	Width       int
+	Height      int
+	available   []HelpItem
+	unavailable []HelpItem
+	closeKeys   []key.Binding
+	theme       theme.Theme
 }
 
 func NewHelp() HelpModel {
@@ -22,8 +31,8 @@ func NewHelp() HelpModel {
 func (m HelpModel) Update(msg tea.Msg) (HelpModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "esc", "?", "q":
+		switch {
+		case key.Matches(msg, m.closeKeys...):
 			return m, func() tea.Msg { return HelpCloseMsg{} }
 		}
 	}
@@ -35,45 +44,22 @@ func (m HelpModel) View() string {
 
 	title := t.AppTitle.Render(" Keybindings")
 
-	availableBindings := [][2]string{
-		{"j/k", "Navigate workspace list"},
-		{"h/l", "Switch preview pane tab"},
-		{"enter", "Attach to selected workspace"},
-		{"n", "New workspace"},
-		{"d", "Delete workspace"},
-		{"b", "Broadcast prompt"},
-		{"J", "Jump to next needing attention"},
-		{"?", "Toggle this help"},
-		{"q", "Quit"},
-		{"", ""},
-		{"prefix+e", "Return to dashboard from workspace"},
-	}
-
-	unavailableBindings := [][2]string{
-		{"D", "Diff viewer (unavailable)"},
-		{"r", "Rename workspace (unavailable)"},
-		{"/", "Filter workspaces (unavailable)"},
-		{"m", "Mark read (unavailable)"},
-		{"R", "Restart agent (unavailable)"},
-		{"s", "Stop agent (unavailable)"},
-	}
-
 	var rows []string
 	rows = append(rows, "  "+t.Dim.Render("Available"))
-	for _, b := range availableBindings {
-		key := t.HelpKey.Width(10).Render(b[0])
-		desc := t.HelpDesc.Render(b[1])
+	for _, item := range m.available {
+		key := t.HelpKey.Width(10).Render(item.Key)
+		desc := t.HelpDesc.Render(item.Desc)
 		rows = append(rows, "  "+key+" "+desc)
 	}
 
 	rows = append(rows, "", "  "+t.Dim.Render("Unavailable"))
-	for _, b := range unavailableBindings {
-		key := t.HelpKey.Width(10).Render(b[0])
-		desc := t.Dim.Render(b[1])
+	for _, item := range m.unavailable {
+		key := t.HelpKey.Width(10).Render(item.Key)
+		desc := t.Dim.Render(item.Desc)
 		rows = append(rows, "  "+key+" "+desc)
 	}
 
-	content := title + "\n\n" + strings.Join(rows, "\n") + "\n\n" + t.Dim.Render("  Press esc or ? to close")
+	content := title + "\n\n" + strings.Join(rows, "\n") + "\n\n" + t.Dim.Render("  Press "+joinCloseKeyLabels(m.closeKeys...)+" to close")
 
 	border := t.DialogBorder.
 		Padding(1, 2).
@@ -85,4 +71,32 @@ func (m HelpModel) View() string {
 func (m HelpModel) WithTheme(t theme.Theme) HelpModel {
 	m.theme = t
 	return m
+}
+
+func (m HelpModel) WithItems(available, unavailable []HelpItem, closeKeys ...key.Binding) HelpModel {
+	m.available = available
+	m.unavailable = unavailable
+	m.closeKeys = closeKeys
+	return m
+}
+
+func joinCloseKeyLabels(bindings ...key.Binding) string {
+	labels := make([]string, 0, len(bindings))
+	seen := make(map[string]struct{}, len(bindings))
+	for _, binding := range bindings {
+		label := binding.Help().Key
+		if label == "" {
+			keys := binding.Keys()
+			label = strings.Join(keys, "/")
+		}
+		if label == "" {
+			continue
+		}
+		if _, ok := seen[label]; ok {
+			continue
+		}
+		seen[label] = struct{}{}
+		labels = append(labels, label)
+	}
+	return strings.Join(labels, " or ")
 }

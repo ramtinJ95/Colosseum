@@ -17,6 +17,7 @@ type Model struct {
 	theme      theme.Theme
 	upKey      key.Binding
 	downKey    key.Binding
+	newKey     key.Binding
 }
 
 func New() Model {
@@ -53,6 +54,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 func (m Model) WithNavigationKeys(up, down key.Binding) Model {
 	m.upKey = up
 	m.downKey = down
+	return m
+}
+
+func (m Model) WithNewKey(newKey key.Binding) Model {
+	m.newKey = newKey
 	return m
 }
 
