@@ -1,0 +1,32 @@
+package main
+
+import (
+	"context"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/spf13/cobra"
+
+	"github.com/ramtinj/colosseum/internal/status"
+	"github.com/ramtinj/colosseum/internal/tui"
+)
+
+func runDashboard(_ *cobra.Command, _ []string) error {
+	store := newStore()
+	client := newTmuxClient()
+	mgr := newManager(store, client)
+
+	detector := status.NewDetector(client, cfg.Status.CaptureLines)
+	poller := status.NewPoller(detector, store, time.Duration(cfg.Status.PollIntervalMS)*time.Millisecond)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go poller.Run(ctx)
+
+	app := tui.NewApp(store, mgr, poller, detector, cfg)
+	p := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())
+
+	_, err := p.Run()
+	return err
+}

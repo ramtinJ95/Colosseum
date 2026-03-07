@@ -24,14 +24,20 @@ Colosseum is a Go + tmux + Bubble Tea workspace manager for running AI coding ag
 
 | Metric | Value |
 |--------|-------|
-| Go source files under `cmd/` + `internal/` | 50 |
-| Test files | 16 |
-| Test functions | 71 |
+| Go source files under `cmd/` + `internal/` | 44 |
+| Test files | 18 |
+| Test functions | 89 |
 | Go packages under `cmd/` + `internal/` | 11 |
 | CLI subcommands | 4 (`new`, `list`, `attach`, `delete`) |
-| Fixture files | 26 files |
+| Fixture files | 27 files |
 
 ### Recent Changes Since The Previous Handoff
+
+**CLI surface split (2026-03-07)** — the Cobra entrypoint is no longer monolithic:
+
+1. `cmd/colosseum/main.go` now just executes the root command.
+2. Root command/config loading, shared bootstrap helpers, dashboard startup, and each subcommand now live in separate files under `cmd/colosseum/`.
+3. The command behavior and flags stayed the same, but future CLI work no longer has to stack onto one file.
 
 **Config/runtime wiring completed on `main` (2026-03-07)** — the previously introduced config surface is now actually honored at runtime:
 
