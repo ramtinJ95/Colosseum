@@ -75,7 +75,7 @@ func init() {
 	}
 
 	newCmd.Flags().StringVarP(&flagPath, "path", "p", ".", "project directory path")
-	newCmd.Flags().StringVarP(&flagAgent, "agent", "a", cfg.Defaults.Agent, "agent type (claude, codex)")
+	newCmd.Flags().StringVarP(&flagAgent, "agent", "a", cfg.Defaults.Agent, "agent type (claude, codex, opencode)")
 	newCmd.Flags().StringVarP(&flagBranch, "branch", "b", "", "git branch name")
 	newCmd.Flags().StringVarP(&flagLayout, "layout", "l", cfg.Defaults.Layout, "pane layout (agent, agent-shell, agent-shell-logs)")
 
