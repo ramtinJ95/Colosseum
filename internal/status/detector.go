@@ -10,7 +10,8 @@ import (
 )
 
 var (
-	brailleRange = regexp.MustCompile(`[\x{2800}-\x{28FF}]`)
+	brailleRange         = regexp.MustCompile(`[\x{2800}-\x{28FF}]`)
+	approvalQuestionLine = regexp.MustCompile(`(?i)\b(allow|approve|deny|permission|confirm|proceed|continue|grant|access)\b.*\?\s*$`)
 )
 
 type PaneCapturer interface {
@@ -92,7 +93,7 @@ func DetectFromContent(content string, def *agent.AgentDef) agent.Status {
 		// A visible prompt with a recent explicit question/choice means the
 		// agent is waiting on the user, not merely idle at a fresh prompt.
 		if isPromptOnly(bottom[0]) {
-			if matchesAny(recent, def.WaitingPatterns) {
+			if matchesAny(recent, def.WaitingPatterns) || matchesApprovalQuestion(recent) {
 				return agent.StatusWaiting
 			}
 		}
@@ -146,6 +147,15 @@ func linesBeforeBottom(lines []string, n int) []string {
 
 func isPromptOnly(line string) bool {
 	return regexp.MustCompile(`^\s*[❯›>$]\s*$`).MatchString(line)
+}
+
+func matchesApprovalQuestion(lines []string) bool {
+	for _, line := range lines {
+		if approvalQuestionLine.MatchString(strings.TrimSpace(line)) {
+			return true
+		}
+	}
+	return false
 }
 
 func matchesAny(lines []string, patterns []*regexp.Regexp) bool {
