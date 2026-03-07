@@ -7,6 +7,7 @@ import (
 )
 
 const defaultSessionPrefix = "colo-"
+const dashboardReturnKey = "C-g"
 
 type Client struct {
 	Commander     Commander
@@ -63,11 +64,36 @@ func (c *Client) ListSessions(ctx context.Context) ([]string, error) {
 }
 
 func (c *Client) SwitchClient(ctx context.Context, name string) error {
-	_, err := c.Commander.Run(ctx, "switch-client", "-t", c.fullName(name))
+	dashboardSession, err := c.currentSession(ctx)
+	if err != nil {
+		return fmt.Errorf("detect current session: %w", err)
+	}
+
+	if _, err := c.Commander.Run(
+		ctx,
+		"bind-key",
+		"-N", "Colosseum dashboard",
+		"-T", "prefix",
+		dashboardReturnKey,
+		"switch-client",
+		"-t", dashboardSession,
+	); err != nil {
+		return fmt.Errorf("bind dashboard return key: %w", err)
+	}
+
+	_, err = c.Commander.Run(ctx, "switch-client", "-t", c.fullName(name))
 	if err != nil {
 		return fmt.Errorf("switch client to %q: %w", name, err)
 	}
 	return nil
+}
+
+func (c *Client) currentSession(ctx context.Context) (string, error) {
+	output, err := c.Commander.Run(ctx, "display-message", "-p", "#{session_name}")
+	if err != nil {
+		return "", fmt.Errorf("display current session: %w", err)
+	}
+	return strings.TrimSpace(output), nil
 }
 
 func (c *Client) fullName(name string) string {

@@ -92,6 +92,41 @@ func TestListSessions(t *testing.T) {
 	}
 }
 
+func TestSwitchClientInstallsDashboardBinding(t *testing.T) {
+	mock := NewMockCommander(
+		MockResponse{Output: "dashboard\n", Err: nil},
+		MockResponse{Output: "", Err: nil},
+		MockResponse{Output: "", Err: nil},
+	)
+	client := NewClient(mock)
+
+	if err := client.SwitchClient(context.Background(), "myproject"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(mock.Calls) != 3 {
+		t.Fatalf("expected 3 calls, got %d", len(mock.Calls))
+	}
+
+	assertArgs(t, mock.Calls[0].Args, []string{
+		"display-message",
+		"-p",
+		"#{session_name}",
+	})
+	assertArgs(t, mock.Calls[1].Args, []string{
+		"bind-key",
+		"-N", "Colosseum dashboard",
+		"-T", "prefix",
+		"C-g",
+		"switch-client",
+		"-t", "dashboard",
+	})
+	assertArgs(t, mock.Calls[2].Args, []string{
+		"switch-client",
+		"-t", "colo-myproject",
+	})
+}
+
 func assertArgs(t *testing.T, got, expected []string) {
 	t.Helper()
 	if len(got) != len(expected) {

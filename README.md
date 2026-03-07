@@ -3,7 +3,7 @@
 A terminal-agnostic TUI for managing parallel AI coding agents across git worktrees, built on tmux and Go.
 
 ```
-┌─ tmux session: "colo-ctrl" (the TUI dashboard) ───────────────────┐
+┌─ tmux session: "dashboard" (the TUI you launched) ────────────────┐
 │ ┌─ Sidebar ────────────────────┬─ Preview ────────────────────┐   │
 │ │                              │                               │   │
 │ │  WORKSPACES                  │ auth-feature (claude)         │   │
@@ -93,7 +93,7 @@ colosseum list
 colosseum attach my-feature
 ```
 
-Switches your tmux client to the workspace's session. Return to the dashboard by switching back to `colo-ctrl`.
+Switches your tmux client to the workspace's session. Colosseum also installs a tmux `prefix+C-g` binding that returns directly to the dashboard session you launched it from.
 
 ### Delete a workspace
 

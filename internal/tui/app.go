@@ -170,7 +170,7 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, a.keys.Enter):
 			if ws := a.sidebar.SelectedWorkspace(); ws != nil {
-				a.statusBar = fmt.Sprintf("Switched to %q — tmux prefix+L to return", ws.Title)
+				a.statusBar = fmt.Sprintf("Switched to %q — prefix+C-g returns to dashboard", ws.Title)
 				return a, a.switchToWorkspace(ws.ID)
 			}
 			return a, nil

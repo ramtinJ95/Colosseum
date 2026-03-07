@@ -45,7 +45,7 @@ func (m HelpModel) View() string {
 		{"?", "Toggle this help"},
 		{"q", "Quit"},
 		{"", ""},
-		{"prefix+L", "Return to dashboard from workspace"},
+		{"prefix+C-g", "Return to dashboard from workspace"},
 	}
 
 	unavailableBindings := [][2]string{
