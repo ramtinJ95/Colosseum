@@ -18,6 +18,8 @@ func init() {
 			regexp.MustCompile(`\(esc to interrupt\)`),
 			BrailleSpinner,
 			regexp.MustCompile(`(?m)^\s*✻\s+Cooked for\b`),
+			regexp.MustCompile(`\(thinking\b`),
+			regexp.MustCompile(`\(ctrl\+o to expand\)`),
 		},
 		WaitingPatterns: []*regexp.Regexp{
 			regexp.MustCompile(`(?i)(yes,?\s*allow|allow\s*(once|always))`),

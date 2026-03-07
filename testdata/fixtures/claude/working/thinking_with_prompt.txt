@@ -1,0 +1,16 @@
+
+  ● Searched for 1 pattern, read 4 files (ctrl+o to expand)
+
+  ● No AGENTS.md — that's fine. Let me read the key files.
+
+  ● Searching for 1 pattern; reading 23 files… (ctrl+o to expand)
+    └ cmd/colosseum/main.go
+
+  · Nebulizing… (thinking with high effort)
+
+  ──────────────────────────────────── ● ● ● – ──────────────────────────
+  ›
+
+  ──────────────────────────────────────────────────────────────────────
+  Opus 4.6 | 9.9k/200.0k (5%) | 5h: 39% 47m | 7d: 14% 3d5h
+  -- INSERT -- ›› bypass permissions on (shift+tab to cycle)
