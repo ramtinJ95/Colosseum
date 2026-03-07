@@ -245,7 +245,39 @@ func TestPollerUrgentStatusBypassesSpikeWindow(t *testing.T) {
 	}
 }
 
-func TestPollerTitleDetectsWorking(t *testing.T) {
+func TestPollerTitleUpgradesUnknownToWorking(t *testing.T) {
+	// Content that produces StatusUnknown (no pattern matches).
+	// Title has braille spinner → should upgrade to Working.
+	capturer := &mockCapturer{
+		content: "some output text\n",
+		title:   "⠹ claude",
+	}
+	detector := NewDetector(capturer, 50)
+
+	ws := workspace.Workspace{
+		ID:        "ws-1",
+		AgentType: agent.Claude,
+		PaneTargets: map[string]string{
+			"agent": "%0",
+		},
+	}
+	provider := &mockProvider{workspaces: []workspace.Workspace{ws}}
+	poller := NewPoller(detector, provider, 50*time.Millisecond, WithSpikeWindow(0), WithHysteresisWindow(0))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	go poller.Run(ctx)
+
+	update := <-poller.Updates()
+	if update.Current != agent.StatusWorking {
+		t.Errorf("title braille should upgrade Unknown to Working, got %s", update.Current)
+	}
+}
+
+func TestPollerTitleDoesNotUpgradeIdle(t *testing.T) {
+	// Content definitively says Idle (prompt visible).
+	// Title has braille spinner → should NOT upgrade (title may be stale).
 	capturer := &mockCapturer{
 		content: ">\n",
 		title:   "⠹ claude",
@@ -268,8 +300,8 @@ func TestPollerTitleDetectsWorking(t *testing.T) {
 	go poller.Run(ctx)
 
 	update := <-poller.Updates()
-	if update.Current != agent.StatusWorking {
-		t.Errorf("title braille should upgrade idle to Working, got %s", update.Current)
+	if update.Current != agent.StatusIdle {
+		t.Errorf("title should not override definitive Idle from content, got %s", update.Current)
 	}
 }
 

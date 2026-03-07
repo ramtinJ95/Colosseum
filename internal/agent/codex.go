@@ -21,7 +21,6 @@ func init() {
 			regexp.MustCompile(`(?i)(yes|no|edit)\s*$`),
 			regexp.MustCompile(`(?i)(do you want|would you like|should i|shall i)`),
 			regexp.MustCompile(`(?i)(which .* prefer|what .* want to tackle|how would you like)`),
-			regexp.MustCompile(`\?\s*$`),
 		},
 		IdlePatterns: []*regexp.Regexp{
 			CommonPromptChars,

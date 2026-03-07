@@ -9,7 +9,10 @@ import (
 	"github.com/ramtinj/colosseum/internal/agent"
 )
 
-var brailleRange = regexp.MustCompile(`[\x{2800}-\x{28FF}]`)
+var (
+	brailleRange      = regexp.MustCompile(`[\x{2800}-\x{28FF}]`)
+	questionEndsLine  = regexp.MustCompile(`\?\s*$`)
+)
 
 type PaneCapturer interface {
 	CapturePane(ctx context.Context, target string, lines int) (string, error)
@@ -46,8 +49,9 @@ func (d *Detector) Detect(ctx context.Context, paneTarget string, agentType agen
 
 	// Pane title is a supplementary working signal: Claude Code sets braille
 	// spinner characters in the tmux pane title while actively processing.
-	// Only upgrade Idle/Unknown — never override Waiting/Error.
-	if status == agent.StatusIdle || status == agent.StatusUnknown {
+	// Only upgrade Unknown — when content definitively says Idle we trust it
+	// because the pane title is sticky and may not be cleared after a crash.
+	if status == agent.StatusUnknown {
 		if title, err := d.capturer.CapturePaneTitle(ctx, paneTarget); err == nil && titleIndicatesWorking(title) {
 			status = agent.StatusWorking
 		}
@@ -86,8 +90,16 @@ func DetectFromContent(content string, def *agent.AgentDef) agent.Status {
 
 		// A visible prompt with a recent explicit question/choice means the
 		// agent is waiting on the user, not merely idle at a fresh prompt.
-		if isPromptOnly(bottom[0]) && matchesAny(recent, def.WaitingPatterns) {
-			return agent.StatusWaiting
+		if isPromptOnly(bottom[0]) {
+			if matchesAny(recent, def.WaitingPatterns) {
+				return agent.StatusWaiting
+			}
+			// Catch natural-language questions ("Do you have...?") that
+			// aren't covered by the specific WaitingPatterns. Safe here
+			// because the window is only the 3 lines above the prompt.
+			if matchesAnyLine(recent, []*regexp.Regexp{questionEndsLine}) {
+				return agent.StatusWaiting
+			}
 		}
 
 		return agent.StatusIdle
@@ -96,7 +108,13 @@ func DetectFromContent(content string, def *agent.AgentDef) agent.Status {
 	if matchesAny(lastNonEmpty, def.WorkingPatterns) {
 		return agent.StatusWorking
 	}
-	if matchesAny(lastNonEmpty, def.WaitingPatterns) {
+	// Waiting patterns are more prone to false positives from old output,
+	// so restrict to the last 10 non-empty lines in the non-idle path.
+	recentForWaiting := lastNonEmpty
+	if len(recentForWaiting) > 10 {
+		recentForWaiting = recentForWaiting[len(recentForWaiting)-10:]
+	}
+	if matchesAny(recentForWaiting, def.WaitingPatterns) {
 		return agent.StatusWaiting
 	}
 	if matchesAny(lastNonEmpty, def.ErrorPatterns) {
