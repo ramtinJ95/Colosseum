@@ -104,6 +104,16 @@ func TestDetectFromContent_IdleBottomPriority(t *testing.T) {
 	}
 }
 
+func TestDetectFromContent_WorkingBeforePromptBottomWins(t *testing.T) {
+	def, _ := agent.Get(agent.Codex)
+
+	content := "• Working (26s • esc to interrupt)\n\n› Use /skills to list available skills\n\n~/workspace/prefect-data-flows · gpt-5.4 high · 86% left · 249K used"
+	got := DetectFromContent(content, def)
+	if got != agent.StatusWorking {
+		t.Errorf("working line directly before prompt-like bottom line should stay Working, got %s", got)
+	}
+}
+
 func TestDetectFromContent_StatusBarFiltered(t *testing.T) {
 	def, _ := agent.Get(agent.Claude)
 

@@ -1,0 +1,22 @@
+codex
+
+prefect-data-flows ducklake-poc2* ≡
+ ❯ codex
+╭────────────────────────────────────────────╮
+│ >_ OpenAI Codex (v0.111.0)                 │
+│                                            │
+│ model:     gpt-5.4 high   /model to change │
+│ directory: ~/workspace/prefect-data-flows  │
+╰────────────────────────────────────────────╯
+
+  Tip: New Use /fast to enable our fastest inference at 2X plan usage.
+
+› what is this repo about would you say?
+
+• I’m reading the repo’s local guidance and core docs first, then I’ll distill what the codebase is actually for in practice.
+
+• Working (2m 09s • esc to interrupt)
+
+› Use /skills to list available skills
+
+  ~/workspace/prefect-data-flows · gpt-5.4 high · 5h 68% · weekly 70% · 86% left · 249K used

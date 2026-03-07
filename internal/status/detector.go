@@ -14,7 +14,7 @@ type PaneCapturer interface {
 }
 
 type Detector struct {
-	capturer    PaneCapturer
+	capturer     PaneCapturer
 	captureLines int
 }
 
@@ -23,7 +23,7 @@ func NewDetector(capturer PaneCapturer, captureLines int) *Detector {
 		captureLines = 50
 	}
 	return &Detector{
-		capturer:    capturer,
+		capturer:     capturer,
 		captureLines: captureLines,
 	}
 }
@@ -61,6 +61,13 @@ func DetectFromContent(content string, def *agent.AgentDef) agent.Status {
 		bottom = lastNonEmpty[len(lastNonEmpty)-1:]
 	}
 	if matchesAnyLine(bottom, def.IdlePatterns) {
+		// Codex can keep a prompt-like helper line at the bottom while still
+		// rendering an active "Working (... esc to interrupt)" line directly
+		// above it. Prefer Working in that case so the sidebar does not
+		// flicker back to Idle mid-response.
+		if len(lastNonEmpty) >= 2 && matchesAnyLine(lastNonEmpty[len(lastNonEmpty)-2:len(lastNonEmpty)-1], def.WorkingPatterns) {
+			return agent.StatusWorking
+		}
 		return agent.StatusIdle
 	}
 
