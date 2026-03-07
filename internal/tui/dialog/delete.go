@@ -52,7 +52,7 @@ func (m DeleteModel) View() string {
 
 	title := t.StatusError.Bold(true).Render(" Delete Workspace")
 	prompt := fmt.Sprintf("\n  Delete %q?\n  This will kill the tmux session.\n", m.WorkspaceTitle)
-	help := t.Dim.Render(fmt.Sprintf("  %s: confirm  %s: cancel", bindingLabel(m.keys.Confirm), bindingLabel(m.keys.Cancel)))
+	help := t.Dim.Render(fmt.Sprintf("  %s: confirm  %s: cancel", BindingLabel(m.keys.Confirm), BindingLabel(m.keys.Cancel)))
 
 	content := title + prompt + "\n" + help
 

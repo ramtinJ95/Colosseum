@@ -336,11 +336,11 @@ func (m NewWorkspaceModel) View() string {
 
 	help := t.Dim.Render(fmt.Sprintf(
 		"  %s: complete path  %s: next/create  %s/%s: select  %s: cancel",
-		bindingLabel(m.keys.Tab),
-		bindingLabel(m.keys.Enter),
-		bindingLabel(m.keys.SelectPrev),
-		bindingLabel(m.keys.SelectNext),
-		bindingLabel(m.keys.Cancel),
+		BindingLabel(m.keys.Tab),
+		BindingLabel(m.keys.Enter),
+		BindingLabel(m.keys.SelectPrev),
+		BindingLabel(m.keys.SelectNext),
+		BindingLabel(m.keys.Cancel),
 	))
 
 	content := title + "\n\n" + strings.Join(rows, "\n") + "\n\n" + help
