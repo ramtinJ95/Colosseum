@@ -21,7 +21,7 @@ A tmux-native TUI for managing parallel AI coding agent workspaces, built on tmu
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-Colosseum currently supports Claude Code and Codex workspaces. Each agent gets its own tmux session with a configurable pane layout, and a central TUI dashboard provides real-time status detection and workspace switching.
+Colosseum currently supports Claude Code, Codex, and OpenCode for new workspace creation. Each agent gets its own tmux session with a configurable pane layout, and a central TUI dashboard provides real-time status detection and workspace switching.
 
 ## Prerequisites
 
@@ -69,7 +69,7 @@ colosseum new my-feature --path ~/projects/myapp --agent claude --branch feat/au
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
 | `--path` | `-p` | `.` | Project directory |
-| `--agent` | `-a` | `claude` | Agent type: `claude`, `codex` |
+| `--agent` | `-a` | `claude` | Agent type: `claude`, `codex`, `opencode` |
 | `--branch` | `-b` | | Optional branch label stored in workspace metadata |
 | `--layout` | `-l` | `agent-shell` | Pane layout: `agent`, `agent-shell`, `agent-shell-logs` |
 
@@ -143,6 +143,7 @@ Detection priority: Working > Waiting > Error > Idle.
 |-------|--------|-------------------|
 | Claude Code | `claude` | `--dangerously-skip-permissions` |
 | Codex CLI | `codex` | `--approval-mode full-auto` |
+| OpenCode | `opencode` | None configured |
 
 ## Pane Layouts
 
