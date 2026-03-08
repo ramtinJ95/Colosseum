@@ -432,6 +432,39 @@ func TestManagerBroadcastContinuesOnSendError(t *testing.T) {
 	}
 }
 
+func TestManagerBroadcastDisablesBracketedPasteForClaudeMultiline(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	mock := &mockSessionCreator{}
+	mgr := NewManager(store, mock, "colo-")
+
+	ws1, err := mgr.Create(context.Background(), "ws-1", agent.Claude, "/tmp/p1", "main", LayoutAgent)
+	if err != nil {
+		t.Fatalf("Create ws-1: %v", err)
+	}
+	ws2, err := mgr.Create(context.Background(), "ws-2", agent.Codex, "/tmp/p2", "main", LayoutAgent)
+	if err != nil {
+		t.Fatalf("Create ws-2: %v", err)
+	}
+
+	mock.sendKeysCalls = nil
+
+	_, err = mgr.Broadcast(context.Background(), "line1\nline2", []string{ws1.ID, ws2.ID})
+	if err != nil {
+		t.Fatalf("Broadcast: %v", err)
+	}
+
+	if len(mock.sendKeysCalls) != 2 {
+		t.Fatalf("expected 2 send-keys calls, got %d", len(mock.sendKeysCalls))
+	}
+	if !mock.sendKeysCalls[0].Opts.DisableBracketedPaste {
+		t.Fatal("claude multiline should disable bracketed paste")
+	}
+	if mock.sendKeysCalls[1].Opts.DisableBracketedPaste {
+		t.Fatal("codex multiline should keep bracketed paste enabled")
+	}
+}
+
 func TestManagerBroadcastRejectsInvalidInput(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))

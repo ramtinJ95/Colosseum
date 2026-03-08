@@ -7,11 +7,12 @@ import (
 
 func init() {
 	Register(&AgentDef{
-		Name:        Claude,
-		Binary:      "claude",
-		LaunchFlags: []string{},
-		YoloFlags:   []string{"--dangerously-skip-permissions"},
-		InputDelay:  100 * time.Millisecond,
+		Name:                              Claude,
+		Binary:                            "claude",
+		LaunchFlags:                       []string{},
+		YoloFlags:                         []string{"--dangerously-skip-permissions"},
+		InputDelay:                        100 * time.Millisecond,
+		DisableBracketedPasteForMultiline: true,
 		IgnorePatterns: []*regexp.Regexp{
 			regexp.MustCompile(`Tokens:.*Remaining:`),
 			regexp.MustCompile(`^\s*Opus .* \| .*`),
