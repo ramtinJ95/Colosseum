@@ -66,3 +66,35 @@ func TestClientCreateResolvesAuthoritativePathViaList(t *testing.T) {
 		t.Fatalf("merge base = %q, want abc123", snapshot.MergeBaseSHA)
 	}
 }
+
+func TestClientResolvePathAcceptsNestedDirectories(t *testing.T) {
+	wt := &mockCommander{
+		responses: map[string]string{
+			fmt.Sprint([]string{"-C", "/repo/.worktrees/feature", "list", "--format=json"}): `[{"branch":"main","path":"/repo","kind":"worktree","is_main":true,"is_current":false},{"branch":"feature","path":"/repo/.worktrees/feature","kind":"worktree","is_main":false,"is_current":true}]`,
+		},
+	}
+	git := &mockCommander{
+		responses: map[string]string{
+			fmt.Sprint([]string{"-C", "/repo/.worktrees/feature/pkg", "rev-parse", "--show-toplevel"}): "/repo/.worktrees/feature",
+			fmt.Sprint([]string{"-C", "/repo/.worktrees/feature", "merge-base", "feature", "main"}):    "abc123",
+		},
+	}
+	client := NewClientWithCommanders(wt, git)
+
+	snapshot, err := client.ResolvePath(context.Background(), "/repo/.worktrees/feature/pkg")
+	if err != nil {
+		t.Fatalf("ResolvePath: %v", err)
+	}
+	if snapshot.CheckoutPath != "/repo/.worktrees/feature" {
+		t.Fatalf("checkout path = %q, want /repo/.worktrees/feature", snapshot.CheckoutPath)
+	}
+	if snapshot.Branch != "feature" {
+		t.Fatalf("branch = %q, want feature", snapshot.Branch)
+	}
+	if snapshot.DefaultBranch != "main" {
+		t.Fatalf("default branch = %q, want main", snapshot.DefaultBranch)
+	}
+	if snapshot.MergeBaseSHA != "abc123" {
+		t.Fatalf("merge base = %q, want abc123", snapshot.MergeBaseSHA)
+	}
+}
