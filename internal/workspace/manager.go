@@ -16,7 +16,7 @@ type SessionCreator interface {
 	KillSession(ctx context.Context, name string) error
 	SplitWindow(ctx context.Context, session string, horizontal bool, startDir string) (string, error)
 	SwitchClient(ctx context.Context, name string) error
-	SendKeys(ctx context.Context, target string, keys string, inputDelay time.Duration) error
+	SendKeys(ctx context.Context, target string, keys string, opts tmux.SendOptions) error
 }
 
 type Manager struct {
@@ -105,7 +105,7 @@ func (m *Manager) Create(ctx context.Context, title string, agentType agent.Agen
 	for _, flag := range def.LaunchFlags {
 		launchCmd += " " + flag
 	}
-	if err := m.sessions.SendKeys(ctx, agentPaneID, launchCmd, 0); err != nil {
+	if err := m.sessions.SendKeys(ctx, agentPaneID, launchCmd, tmux.SendOptions{}); err != nil {
 		return nil, fmt.Errorf("launching agent %q: %w", agentType, err)
 	}
 
@@ -218,12 +218,14 @@ func (m *Manager) Broadcast(ctx context.Context, prompt string, workspaceIDs []s
 			continue
 		}
 
-		var inputDelay time.Duration
+		opts := tmux.SendOptions{}
 		if def, ok := agent.Get(ws.AgentType); ok {
-			inputDelay = def.InputDelay
+			opts.InputDelay = def.InputDelay
+			opts.ForcePaste = def.PasteSingleLine && !strings.Contains(prompt, "\n")
+			opts.DisableBracketedPaste = def.DisableBracketedPasteForMultiline && strings.Contains(prompt, "\n")
 		}
 
-		if err := m.sessions.SendKeys(ctx, agentPane, prompt, inputDelay); err != nil {
+		if err := m.sessions.SendKeys(ctx, agentPane, prompt, opts); err != nil {
 			result.Failed = append(result.Failed, BroadcastFailure{
 				WorkspaceID:    ws.ID,
 				WorkspaceTitle: ws.Title,

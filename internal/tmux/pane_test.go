@@ -84,7 +84,7 @@ func TestSendKeys(t *testing.T) {
 	)
 	client := NewClient(mock)
 
-	err := client.SendKeys(context.Background(), "%3", "ls -la", 0)
+	err := client.SendKeys(context.Background(), "%3", "ls -la", SendOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestSendKeysUsesPasteBufferForMultilineInput(t *testing.T) {
 	)
 	client := NewClient(mock)
 
-	err := client.SendKeys(context.Background(), "%3", "line1\nline2", 0)
+	err := client.SendKeys(context.Background(), "%3", "line1\nline2", SendOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -147,6 +147,29 @@ func TestSendLiteralKeys(t *testing.T) {
 			t.Error("SendLiteralKeys should not append Enter")
 		}
 	}
+}
+
+func TestSendKeysCanForcePasteForSingleLine(t *testing.T) {
+	mock := NewMockCommander(
+		MockResponse{Output: "", Err: nil},
+		MockResponse{Output: "", Err: nil},
+		MockResponse{Output: "", Err: nil},
+	)
+	client := NewClient(mock)
+
+	err := client.SendKeys(context.Background(), "%3", "hello world", SendOptions{ForcePaste: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(mock.Calls) != 3 {
+		t.Fatalf("expected 3 tmux calls, got %d", len(mock.Calls))
+	}
+
+	setBufferArgs := mock.Calls[0].Args
+	assertArgs(t, setBufferArgs[3:], []string{"--", "hello world"})
+	assertArgs(t, mock.Calls[1].Args, []string{"paste-buffer", "-d", "-p", "-r", "-b", setBufferArgs[2], "-t", "%3"})
+	assertArgs(t, mock.Calls[2].Args, []string{"send-keys", "-t", "%3", "Enter"})
 }
 
 func TestListPanes(t *testing.T) {

@@ -44,14 +44,16 @@ func (s Status) String() string {
 }
 
 type AgentDef struct {
-	Name            AgentType
-	Binary          string
-	LaunchFlags     []string
-	YoloFlags       []string
-	InputDelay      time.Duration
-	IgnorePatterns  []*regexp.Regexp
-	WorkingPatterns []*regexp.Regexp
-	WaitingPatterns []*regexp.Regexp
-	IdlePatterns    []*regexp.Regexp
-	ErrorPatterns   []*regexp.Regexp
+	Name                              AgentType
+	Binary                            string
+	LaunchFlags                       []string
+	YoloFlags                         []string
+	InputDelay                        time.Duration
+	PasteSingleLine                   bool
+	DisableBracketedPasteForMultiline bool
+	IgnorePatterns                    []*regexp.Regexp
+	WorkingPatterns                   []*regexp.Regexp
+	WaitingPatterns                   []*regexp.Regexp
+	IdlePatterns                      []*regexp.Regexp
+	ErrorPatterns                     []*regexp.Regexp
 }

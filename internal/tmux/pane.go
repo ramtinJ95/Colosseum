@@ -13,6 +13,12 @@ type PaneInfo struct {
 	Height int
 }
 
+type SendOptions struct {
+	InputDelay            time.Duration
+	ForcePaste            bool
+	DisableBracketedPaste bool
+}
+
 func (c *Client) SplitWindow(ctx context.Context, session string, horizontal bool, startDir string) (string, error) {
 	orientation := "-v"
 	if horizontal {
@@ -54,15 +60,15 @@ func (c *Client) CapturePaneTitle(ctx context.Context, target string) (string, e
 	return output, nil
 }
 
-func (c *Client) SendKeys(ctx context.Context, target string, keys string, inputDelay time.Duration) error {
-	if strings.Contains(keys, "\n") {
-		return c.pasteBuffer(ctx, target, keys, inputDelay)
+func (c *Client) SendKeys(ctx context.Context, target string, keys string, opts SendOptions) error {
+	if opts.ForcePaste || strings.Contains(keys, "\n") {
+		return c.pasteBuffer(ctx, target, keys, opts)
 	}
 	if _, err := c.Commander.Run(ctx, "send-keys", "-t", target, "-l", keys); err != nil {
 		return fmt.Errorf("send keys to %q: %w", target, err)
 	}
-	if inputDelay > 0 {
-		time.Sleep(inputDelay)
+	if opts.InputDelay > 0 {
+		time.Sleep(opts.InputDelay)
 	}
 	if _, err := c.Commander.Run(ctx, "send-keys", "-t", target, "Enter"); err != nil {
 		return fmt.Errorf("send enter to %q: %w", target, err)
@@ -78,16 +84,21 @@ func (c *Client) SendLiteralKeys(ctx context.Context, target string, text string
 	return nil
 }
 
-func (c *Client) pasteBuffer(ctx context.Context, target string, text string, inputDelay time.Duration) error {
+func (c *Client) pasteBuffer(ctx context.Context, target string, text string, opts SendOptions) error {
 	bufferName := fmt.Sprintf("colosseum-%d", time.Now().UnixNano())
 	if _, err := c.Commander.Run(ctx, "set-buffer", "-b", bufferName, "--", text); err != nil {
 		return fmt.Errorf("set paste buffer for %q: %w", target, err)
 	}
-	if _, err := c.Commander.Run(ctx, "paste-buffer", "-d", "-p", "-r", "-b", bufferName, "-t", target); err != nil {
+	args := []string{"paste-buffer", "-d"}
+	if !opts.DisableBracketedPaste {
+		args = append(args, "-p")
+	}
+	args = append(args, "-r", "-b", bufferName, "-t", target)
+	if _, err := c.Commander.Run(ctx, args...); err != nil {
 		return fmt.Errorf("paste buffer into %q: %w", target, err)
 	}
-	if inputDelay > 0 {
-		time.Sleep(inputDelay)
+	if opts.InputDelay > 0 {
+		time.Sleep(opts.InputDelay)
 	}
 	if _, err := c.Commander.Run(ctx, "send-keys", "-t", target, "Enter"); err != nil {
 		return fmt.Errorf("send enter to %q: %w", target, err)

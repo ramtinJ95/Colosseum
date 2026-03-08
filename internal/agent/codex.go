@@ -1,17 +1,14 @@
 package agent
 
-import (
-	"regexp"
-	"time"
-)
+import "regexp"
 
 func init() {
 	Register(&AgentDef{
-		Name:        Codex,
-		Binary:      "codex",
-		LaunchFlags: []string{},
-		YoloFlags:   []string{"--approval-mode", "full-auto"},
-		InputDelay:  100 * time.Millisecond,
+		Name:            Codex,
+		Binary:          "codex",
+		LaunchFlags:     []string{},
+		YoloFlags:       []string{"--approval-mode", "full-auto"},
+		PasteSingleLine: true,
 		IgnorePatterns: []*regexp.Regexp{
 			regexp.MustCompile(`(?i)^\s*(~?/|/).*[·•].*\d+% left.*used\s*$`),
 		},
