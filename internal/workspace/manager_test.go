@@ -39,9 +39,9 @@ type mockSplitCall struct {
 }
 
 type mockSendKeysCall struct {
-	Target     string
-	Keys       string
-	InputDelay time.Duration
+	Target string
+	Keys   string
+	Opts   tmux.SendOptions
 }
 
 func (m *mockSessionCreator) CreateSession(_ context.Context, name string, startDir string) (string, error) {
@@ -77,8 +77,8 @@ func (m *mockSessionCreator) SwitchClient(_ context.Context, name string) error 
 	return nil
 }
 
-func (m *mockSessionCreator) SendKeys(_ context.Context, target string, keys string, inputDelay time.Duration) error {
-	m.sendKeysCalls = append(m.sendKeysCalls, mockSendKeysCall{Target: target, Keys: keys, InputDelay: inputDelay})
+func (m *mockSessionCreator) SendKeys(_ context.Context, target string, keys string, opts tmux.SendOptions) error {
+	m.sendKeysCalls = append(m.sendKeysCalls, mockSendKeysCall{Target: target, Keys: keys, Opts: opts})
 	if err, ok := m.sendKeysErrs[target]; ok {
 		return err
 	}
@@ -376,8 +376,20 @@ func TestManagerBroadcast(t *testing.T) {
 	if mock.sendKeysCalls[0].Keys != "implement the feature" {
 		t.Fatalf("first send keys = %q, want broadcast prompt", mock.sendKeysCalls[0].Keys)
 	}
+	if mock.sendKeysCalls[0].Opts.InputDelay != 0 {
+		t.Fatalf("first send input delay = %v, want 0 for codex", mock.sendKeysCalls[0].Opts.InputDelay)
+	}
+	if !mock.sendKeysCalls[0].Opts.ForcePaste {
+		t.Fatal("first send should force paste for codex single-line prompts")
+	}
 	if mock.sendKeysCalls[1].Target != ws1.PaneTargets["agent"] {
 		t.Fatalf("second send target = %q, want %q", mock.sendKeysCalls[1].Target, ws1.PaneTargets["agent"])
+	}
+	if mock.sendKeysCalls[1].Opts.InputDelay != 100*time.Millisecond {
+		t.Fatalf("second send input delay = %v, want 100ms for claude", mock.sendKeysCalls[1].Opts.InputDelay)
+	}
+	if mock.sendKeysCalls[1].Opts.ForcePaste {
+		t.Fatal("second send should not force paste for claude single-line prompts")
 	}
 }
 
