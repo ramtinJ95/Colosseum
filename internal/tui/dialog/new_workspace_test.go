@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/ramtinj/colosseum/internal/workspace"
 )
 
 func TestEnterAdvancesPastPathWithoutAcceptingSuggestion(t *testing.T) {
@@ -129,6 +130,39 @@ func TestConfiguredNavigationKeysStillTypeInPathField(t *testing.T) {
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
 	if got := updated.inputs[fieldPath].Value(); got != "jk" {
 		t.Fatalf("path value after k = %q, want %q", got, "jk")
+	}
+}
+
+func TestEnterEmitsExperimentFields(t *testing.T) {
+	model := NewNewWorkspace()
+	model.inputs[fieldName].SetValue("Auth comparison")
+	model.inputs[fieldPath].SetValue("/repo")
+	model.inputs[fieldBaseBranch].SetValue("main")
+	model.inputs[fieldPrompt].SetValue("Fix the auth flow")
+	model.inputs[fieldCount].SetValue("3")
+	model.modeIndex = 2
+	model.strategyIndex = 1
+	model.focusIndex = selectorLayout
+	model.updateFocus()
+
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected create command")
+	}
+
+	msg := cmd()
+	createMsg, ok := msg.(NewWorkspaceMsg)
+	if !ok {
+		t.Fatalf("message type = %T, want NewWorkspaceMsg", msg)
+	}
+	if createMsg.Mode != workspace.CreateModeExperimentRun {
+		t.Fatalf("mode = %q, want %q", createMsg.Mode, workspace.CreateModeExperimentRun)
+	}
+	if createMsg.CandidateCount != 3 {
+		t.Fatalf("candidate count = %d, want 3", createMsg.CandidateCount)
+	}
+	if createMsg.AgentStrategy != workspace.ExperimentAgentAllSupported {
+		t.Fatalf("agent strategy = %q, want %q", createMsg.AgentStrategy, workspace.ExperimentAgentAllSupported)
 	}
 }
 

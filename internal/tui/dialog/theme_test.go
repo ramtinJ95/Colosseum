@@ -12,7 +12,7 @@ func TestWithThemeOverridesDefaultTheme(t *testing.T) {
 	custom.DialogBorder = custom.DialogBorder.BorderForeground(lipgloss.Color("201"))
 
 	newWorkspace := NewNewWorkspace().WithTheme(custom)
-	deleteDialog := NewDelete("ws-1", "demo").WithTheme(custom)
+	deleteDialog := NewDelete("ws-1", "demo", false).WithTheme(custom)
 	helpDialog := NewHelp().WithTheme(custom)
 
 	if !sameColor(newWorkspace.theme.DialogBorder.GetBorderTopForeground(), custom.DialogBorder.GetBorderTopForeground()) {
