@@ -48,11 +48,19 @@ type mockSendKeysCall struct {
 type mockCheckoutLifecycle struct {
 	available        bool
 	resolveSnapshots map[string]worktrunk.Snapshot
+	resolveCalls     []string
 	createSnapshots  map[string]worktrunk.Snapshot
 	createCalls      []mockWorktreeCreateCall
 	removeCalls      []mockWorktreeRemoveCall
 	createErr        error
 	removeErr        error
+}
+
+type mockGitInspector struct {
+	repoRoots       map[string]string
+	currentBranches map[string]string
+	defaultBranches map[string]string
+	mergeBases      map[string]string
 }
 
 type mockWorktreeCreateCall struct {
@@ -112,6 +120,7 @@ func (m *mockCheckoutLifecycle) IsAvailable() bool {
 }
 
 func (m *mockCheckoutLifecycle) ResolvePath(_ context.Context, checkoutPath string) (worktrunk.Snapshot, error) {
+	m.resolveCalls = append(m.resolveCalls, checkoutPath)
 	if snapshot, ok := m.resolveSnapshots[checkoutPath]; ok {
 		return snapshot, nil
 	}
@@ -153,20 +162,56 @@ func (m *mockCheckoutLifecycle) Merge(_ context.Context, _ string, _ string) err
 	return nil
 }
 
-func newTestManager(store *Store, sessions *mockSessionCreator) (*Manager, *mockCheckoutLifecycle) {
+func (m *mockGitInspector) RepoRoot(_ context.Context, path string) (string, error) {
+	if root, ok := m.repoRoots[path]; ok {
+		return root, nil
+	}
+	return path, nil
+}
+
+func (m *mockGitInspector) CurrentBranch(_ context.Context, path string) (string, error) {
+	if branch, ok := m.currentBranches[path]; ok {
+		return branch, nil
+	}
+	return "main", nil
+}
+
+func (m *mockGitInspector) DefaultBranch(_ context.Context, path string) (string, error) {
+	if branch, ok := m.defaultBranches[path]; ok {
+		return branch, nil
+	}
+	return "main", nil
+}
+
+func (m *mockGitInspector) MergeBase(_ context.Context, path string, left string, right string) (string, error) {
+	if sha, ok := m.mergeBases[fmt.Sprintf("%s|%s|%s", path, left, right)]; ok {
+		return sha, nil
+	}
+	return "", nil
+}
+
+func newTestManager(store *Store, sessions *mockSessionCreator) (*Manager, *mockCheckoutLifecycle, *mockGitInspector) {
 	checkouts := &mockCheckoutLifecycle{
 		available:        true,
 		resolveSnapshots: make(map[string]worktrunk.Snapshot),
 		createSnapshots:  make(map[string]worktrunk.Snapshot),
 	}
-	return NewManager(store, sessions, checkouts, "colo-"), checkouts
+	git := &mockGitInspector{
+		repoRoots:       make(map[string]string),
+		currentBranches: make(map[string]string),
+		defaultBranches: make(map[string]string),
+		mergeBases:      make(map[string]string),
+	}
+	mgr := NewManager(store, sessions, checkouts, "colo-")
+	mgr.git = git
+	return mgr, checkouts, git
 }
 
 func TestManagerCreate(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
 	mock := &mockSessionCreator{}
-	mgr, _ := newTestManager(store, mock)
+	mgr, _, _ := newTestManager(store, mock)
 
 	ws, err := mgr.Create(context.Background(), "my-workspace", agent.Claude, "/tmp/project", "feature-branch", LayoutAgentShell)
 	if err != nil {
@@ -227,7 +272,7 @@ func TestManagerDelete(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
 	mock := &mockSessionCreator{}
-	mgr, _ := newTestManager(store, mock)
+	mgr, _, _ := newTestManager(store, mock)
 
 	ws, err := mgr.Create(context.Background(), "to-delete", agent.Codex, "/tmp/project", "main", LayoutAgent)
 	if err != nil {
@@ -258,7 +303,7 @@ func TestManagerCreateRollsBackOnSplitError(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
 	mock := &mockSessionCreator{splitErrAt: 1}
-	mgr, _ := newTestManager(store, mock)
+	mgr, _, _ := newTestManager(store, mock)
 
 	if _, err := mgr.Create(context.Background(), "broken", agent.Claude, "/tmp/project", "main", LayoutAgentShell); err == nil {
 		t.Fatal("expected create to fail")
@@ -281,7 +326,7 @@ func TestManagerCreateReturnsLaunchError(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
 	mock := &mockSessionCreator{sendKeysErr: errors.New("send failed")}
-	mgr, _ := newTestManager(store, mock)
+	mgr, _, _ := newTestManager(store, mock)
 
 	if _, err := mgr.Create(context.Background(), "launch-fail", agent.Claude, "/tmp/project", "main", LayoutAgent); err == nil {
 		t.Fatal("expected launch error")
@@ -296,7 +341,7 @@ func TestManagerDeleteIgnoresSessionNotFound(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
 	mock := &mockSessionCreator{}
-	mgr, _ := newTestManager(store, mock)
+	mgr, _, _ := newTestManager(store, mock)
 
 	ws, err := mgr.Create(context.Background(), "already-gone", agent.Codex, "/tmp/project", "main", LayoutAgent)
 	if err != nil {
@@ -313,7 +358,7 @@ func TestManagerDeleteReturnsKillError(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
 	mock := &mockSessionCreator{}
-	mgr, _ := newTestManager(store, mock)
+	mgr, _, _ := newTestManager(store, mock)
 
 	ws, err := mgr.Create(context.Background(), "kill-fail", agent.Codex, "/tmp/project", "main", LayoutAgent)
 	if err != nil {
@@ -338,7 +383,7 @@ func TestManagerList(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
 	mock := &mockSessionCreator{}
-	mgr, _ := newTestManager(store, mock)
+	mgr, _, _ := newTestManager(store, mock)
 
 	ctx := context.Background()
 	if _, err := mgr.Create(ctx, "ws-1", agent.Claude, "/tmp/p1", "main", LayoutAgent); err != nil {
@@ -364,7 +409,7 @@ func TestManagerSwitchToUsesStoredSessionName(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
 	mock := &mockSessionCreator{}
-	mgr, _ := newTestManager(store, mock)
+	mgr, _, _ := newTestManager(store, mock)
 
 	ws, err := mgr.Create(context.Background(), "switch-me", agent.Claude, "/tmp/project", "main", LayoutAgent)
 	if err != nil {
@@ -400,7 +445,7 @@ func TestManagerSwitchToFallsBackToPrefixedTitle(t *testing.T) {
 	}
 
 	mock := &mockSessionCreator{}
-	mgr, _ := newTestManager(store, mock)
+	mgr, _, _ := newTestManager(store, mock)
 	if err := mgr.SwitchTo(context.Background(), ws.ID); err != nil {
 		t.Fatalf("SwitchTo: %v", err)
 	}
@@ -417,7 +462,7 @@ func TestManagerBroadcast(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
 	mock := &mockSessionCreator{}
-	mgr, _ := newTestManager(store, mock)
+	mgr, _, _ := newTestManager(store, mock)
 
 	ws1, err := mgr.Create(context.Background(), "ws-1", agent.Claude, "/tmp/p1", "main", LayoutAgent)
 	if err != nil {
@@ -474,7 +519,7 @@ func TestManagerBroadcastContinuesOnSendError(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
 	mock := &mockSessionCreator{}
-	mgr, _ := newTestManager(store, mock)
+	mgr, _, _ := newTestManager(store, mock)
 
 	ws1, err := mgr.Create(context.Background(), "ws-1", agent.Claude, "/tmp/p1", "main", LayoutAgent)
 	if err != nil {
@@ -513,7 +558,7 @@ func TestManagerBroadcastDisablesBracketedPasteForClaudeMultiline(t *testing.T) 
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
 	mock := &mockSessionCreator{}
-	mgr, _ := newTestManager(store, mock)
+	mgr, _, _ := newTestManager(store, mock)
 
 	ws1, err := mgr.Create(context.Background(), "ws-1", agent.Claude, "/tmp/p1", "main", LayoutAgent)
 	if err != nil {
@@ -546,7 +591,7 @@ func TestManagerBroadcastRejectsInvalidInput(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
 	mock := &mockSessionCreator{}
-	mgr, _ := newTestManager(store, mock)
+	mgr, _, _ := newTestManager(store, mock)
 
 	if _, err := mgr.Broadcast(context.Background(), "   ", []string{"ws-1"}); err == nil {
 		t.Fatal("expected empty prompt error")
@@ -560,7 +605,7 @@ func TestManagerBroadcastReportsMissingWorkspace(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
 	mock := &mockSessionCreator{}
-	mgr, _ := newTestManager(store, mock)
+	mgr, _, _ := newTestManager(store, mock)
 
 	result, err := mgr.Broadcast(context.Background(), "prompt", []string{"missing"})
 	if err != nil {
@@ -582,7 +627,7 @@ func TestManagerCreateWithWorktreePersistsManagedCheckout(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
 	sessions := &mockSessionCreator{}
-	mgr, checkouts := newTestManager(store, sessions)
+	mgr, checkouts, _ := newTestManager(store, sessions)
 
 	ws, err := mgr.CreateWithWorktree(context.Background(), ManagedWorkspaceRequest{
 		Title:      "managed",
@@ -632,7 +677,7 @@ func TestManagerCreateExperimentCreatesCandidatesAndBroadcasts(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
 	sessions := &mockSessionCreator{}
-	mgr, _ := newTestManager(store, sessions)
+	mgr, _, _ := newTestManager(store, sessions)
 
 	result, err := mgr.CreateExperiment(context.Background(), ExperimentRequest{
 		Title:         "Auth fix",
@@ -669,5 +714,81 @@ func TestManagerCreateExperimentCreatesCandidatesAndBroadcasts(t *testing.T) {
 	}
 	if len(state.Checkouts) != len(agent.Supported()) {
 		t.Fatalf("checkouts = %d, want %d", len(state.Checkouts), len(agent.Supported()))
+	}
+}
+
+func TestManagerCreateStandaloneDoesNotRequireCheckoutLifecycle(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	sessions := &mockSessionCreator{}
+	git := &mockGitInspector{
+		repoRoots: map[string]string{
+			"/repo/subdir": "/repo",
+		},
+		currentBranches: map[string]string{
+			"/repo/subdir": "/repo-branch",
+		},
+		defaultBranches: map[string]string{
+			"/repo": "main",
+		},
+		mergeBases: map[string]string{
+			"/repo|/repo-branch|main": "abc123",
+		},
+	}
+
+	mgr := NewManager(store, sessions, nil, "colo-")
+	mgr.git = git
+
+	ws, err := mgr.CreateStandalone(context.Background(), StandaloneWorkspaceRequest{
+		Title:        "standalone",
+		AgentType:    agent.Claude,
+		CheckoutPath: "/repo/subdir",
+		Layout:       LayoutAgent,
+	})
+	if err != nil {
+		t.Fatalf("CreateStandalone: %v", err)
+	}
+	if ws.ProjectPath != "/repo/subdir" {
+		t.Fatalf("project path = %q, want /repo/subdir", ws.ProjectPath)
+	}
+
+	state, err := store.LoadState()
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	if len(state.Checkouts) != 1 {
+		t.Fatalf("checkouts = %d, want 1", len(state.Checkouts))
+	}
+	if state.Checkouts[0].CheckoutPath != "/repo/subdir" {
+		t.Fatalf("checkout path = %q, want /repo/subdir", state.Checkouts[0].CheckoutPath)
+	}
+	if state.Checkouts[0].RepoRoot != "/repo" {
+		t.Fatalf("repo root = %q, want /repo", state.Checkouts[0].RepoRoot)
+	}
+	if state.Repositories[0].WorktrunkAvailable {
+		t.Fatal("expected worktrunk availability to stay false without checkout lifecycle")
+	}
+}
+
+func TestManagerCreateStandaloneSkipsCheckoutResolution(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	sessions := &mockSessionCreator{}
+	mgr, checkouts, git := newTestManager(store, sessions)
+
+	git.repoRoots["/repo"] = "/repo"
+	git.currentBranches["/repo"] = "main"
+	git.defaultBranches["/repo"] = "main"
+
+	if _, err := mgr.CreateStandalone(context.Background(), StandaloneWorkspaceRequest{
+		Title:        "standalone",
+		AgentType:    agent.Claude,
+		CheckoutPath: "/repo",
+		Layout:       LayoutAgent,
+	}); err != nil {
+		t.Fatalf("CreateStandalone: %v", err)
+	}
+	if len(checkouts.resolveCalls) != 0 {
+		t.Fatalf("resolve calls = %v, want none", checkouts.resolveCalls)
 	}
 }

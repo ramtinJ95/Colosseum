@@ -33,6 +33,7 @@ type Manager struct {
 	store         *Store
 	sessions      SessionCreator
 	checkouts     CheckoutLifecycle
+	git           GitInspector
 	sessionPrefix string
 }
 
@@ -91,6 +92,7 @@ func NewManager(store *Store, sessions SessionCreator, checkouts CheckoutLifecyc
 		store:         store,
 		sessions:      sessions,
 		checkouts:     checkouts,
+		git:           NewGitInspector(),
 		sessionPrefix: prefix,
 	}
 }
@@ -108,10 +110,7 @@ func (m *Manager) CreateStandalone(ctx context.Context, req StandaloneWorkspaceR
 	if err := m.validateCreate(req.Title, req.AgentType, req.Layout); err != nil {
 		return nil, err
 	}
-	if m.checkouts == nil {
-		return nil, fmt.Errorf("checkout lifecycle is not configured")
-	}
-	snapshot, err := m.checkouts.ResolvePath(ctx, req.CheckoutPath)
+	snapshot, err := m.resolveStandaloneCheckout(ctx, req.CheckoutPath)
 	if err != nil {
 		return nil, fmt.Errorf("resolve checkout: %w", err)
 	}
@@ -162,6 +161,38 @@ func (m *Manager) CreateStandalone(ctx context.Context, req StandaloneWorkspaceR
 
 	cleanupRuntime = nil
 	return workspaceRecord, nil
+}
+
+func (m *Manager) resolveStandaloneCheckout(ctx context.Context, checkoutPath string) (worktrunk.Snapshot, error) {
+	if m.git == nil {
+		return worktrunk.Snapshot{}, fmt.Errorf("git inspector is not configured")
+	}
+
+	repoRoot, err := m.git.RepoRoot(ctx, checkoutPath)
+	if err != nil {
+		return worktrunk.Snapshot{}, err
+	}
+	branch, err := m.git.CurrentBranch(ctx, checkoutPath)
+	if err != nil {
+		return worktrunk.Snapshot{}, err
+	}
+	defaultBranch, err := m.git.DefaultBranch(ctx, repoRoot)
+	if err != nil {
+		return worktrunk.Snapshot{}, err
+	}
+	mergeBase, err := m.git.MergeBase(ctx, repoRoot, branch, defaultBranch)
+	if err != nil {
+		return worktrunk.Snapshot{}, err
+	}
+
+	return worktrunk.Snapshot{
+		RepoRoot:      repoRoot,
+		CheckoutPath:  checkoutPath,
+		Branch:        branch,
+		BaseBranch:    defaultBranch,
+		DefaultBranch: defaultBranch,
+		MergeBaseSHA:  mergeBase,
+	}, nil
 }
 
 func (m *Manager) CreateWithWorktree(ctx context.Context, req ManagedWorkspaceRequest) (*Workspace, error) {
