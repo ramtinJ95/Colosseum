@@ -1,6 +1,6 @@
 # Colosseum Handoff Document
 
-Current implementation snapshot and gap analysis for the codebase as of 2026-03-07.
+Current implementation snapshot and gap analysis for the codebase as of 2026-03-08.
 
 This document is meant to be a trustworthy handoff for the next agent. It reflects the current repo state after the recent hardening work, not just the original `project-draft.md` plan.
 
@@ -11,6 +11,8 @@ This document is meant to be a trustworthy handoff for the next agent. It reflec
 Colosseum is a Go + tmux + Bubble Tea workspace manager for running AI coding agents in parallel. The current product shape is:
 
 - A working tmux-backed dashboard and CLI for creating, listing, attaching to, deleting, and broadcasting to workspaces
+- `worktrunk`-backed managed worktree creation and ownership-aware deletion
+- Experiment creation that can fan one prompt out to several sibling worktree-backed workspaces
 - Real status detection via pane scraping with per-agent regex patterns tuned to current Claude, Codex, and OpenCode terminal output
 - A supported new-workspace surface for `claude`, `codex`, and `opencode`
 - A real config surface loaded from `~/.config/colosseum/config.toml` for defaults, status polling, UI sizing, tmux behavior, keybindings, and theme colors
@@ -18,7 +20,7 @@ Colosseum is a Go + tmux + Bubble Tea workspace manager for running AI coding ag
 - Config-driven theme propagation across the sidebar, preview, dialogs, and shared app styling
 - Config-driven sidebar navigation instead of hardcoded `j/k`
 - A deterministic tmux return path from attached workspaces back to the dashboard session that launched Colosseum
-- A still-unimplemented roadmap for worktrees and diffing
+- A still-unimplemented roadmap for compare/vote UX, diffing, and the later repo-centric UI
 
 ### Repo Metrics
 
@@ -118,7 +120,7 @@ The binary can currently:
 - Create a workspace from CLI or TUI
 - Create pane layouts `agent`, `agent-shell`, or `agent-shell-logs`
 - Auto-launch the selected agent in the agent pane
-- Persist workspace state to `~/.config/colosseum/workspaces.json`
+- Persist repositories, checkouts, experiments, evaluations, and workspaces to `~/.config/colosseum/workspaces.json`
 - Load optional config from `~/.config/colosseum/config.toml` and fall back to defaults when the file is absent
 - Fail fast on malformed or unreadable config instead of silently ignoring it
 - Refresh and display live workspace status
@@ -197,10 +199,10 @@ The “legacy definition still registered” detail matters because existing sav
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Create git worktree per workspace | **Not Started** | No `internal/worktree/` package exists. |
-| Configurable worktree path templates | **Not Started** | No template resolution logic. |
-| Cleanup worktree on deletion | **Not Started** | Delete only handles tmux and JSON state. |
-| Broadcast worktrees | **Not Started** | No orchestration exists. |
+| Create git worktree per workspace | **Done** | `internal/worktrunk/` drives `wt switch --create --no-cd`, and managed checkouts persist separately from tmux workspaces. |
+| Configurable worktree path templates | **Done via worktrunk** | Colosseum delegates path resolution to `worktrunk` instead of reimplementing it. |
+| Cleanup worktree on deletion | **Done** | Managed checkouts are removed through `wt remove --foreground`; attached checkouts are detached only. |
+| Broadcast worktrees | **Partial** | Experiment creation can immediately broadcast one prompt to all created candidates, but there is no experiment-specific broadcast surface yet. |
 | Diff viewer against base branch | **Not Started** | No diff computation package exists. |
 
 ### Broadcast Prompt
