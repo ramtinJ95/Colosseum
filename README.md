@@ -79,6 +79,30 @@ colosseum new my-feature --path ~/projects/myapp --agent claude --branch feat/au
 | `--count` | | `2` | Candidate count for `experiment-run` when using `selected-agent` |
 | `--experiment-agents` | | `all-supported` | `all-supported` or `selected-agent` |
 
+Modes:
+
+- `existing-checkout`: Attach Colosseum to a checkout that already exists on disk. `--path` is the checkout path. Colosseum reads the current branch from Git and does not create a new worktree.
+- `new-worktree`: Create one managed worktree through `worktrunk` and launch a workspace there. `--path` is the repository root. `--branch` is optional; if omitted, Colosseum generates a branch name from the title. `--base` is optional and falls back to the repo default branch.
+- `experiment-run`: Create several sibling managed worktrees for one task, one workspace per candidate, and optionally broadcast the same prompt immediately. `--path` is the repository root. Experiment branch names are always generated automatically.
+
+Option behavior by mode:
+
+| Option | `existing-checkout` | `new-worktree` | `experiment-run` |
+|--------|----------------------|----------------|------------------|
+| `--path` | Existing checkout path | Repository root | Repository root |
+| `--agent` | Used | Used | Used only with `selected-agent`; ignored with `all-supported` |
+| `--branch` | Ignored | Optional | Ignored |
+| `--base` | Ignored | Optional | Optional |
+| `--layout` | Used | Used | Used for every created workspace |
+| `--prompt` | Ignored | Ignored | Optional prompt broadcast after creation |
+| `--count` | Ignored | Ignored | Used only with `selected-agent` |
+| `--experiment-agents` | Ignored | Ignored | Chooses `all-supported` vs `selected-agent` |
+
+Experiment agent strategies:
+
+- `all-supported`: Create one candidate per supported agent type. In this mode, `--agent` and `--count` are ignored.
+- `selected-agent`: Reuse the chosen `--agent` type for `--count` candidates.
+
 Examples:
 
 ```bash

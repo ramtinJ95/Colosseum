@@ -119,7 +119,7 @@ func NewNewWorkspace() NewWorkspaceModel {
 			countInput,
 		},
 		modes:      []workspace.CreateMode{workspace.CreateModeExistingCheckout, workspace.CreateModeNewWorktree, workspace.CreateModeExperimentRun},
-		strategies: []workspace.ExperimentAgentStrategy{workspace.ExperimentAgentSelected, workspace.ExperimentAgentAllSupported},
+		strategies: []workspace.ExperimentAgentStrategy{workspace.ExperimentAgentAllSupported, workspace.ExperimentAgentSelected},
 		agents:     agent.Supported(),
 		layouts:    workspace.ValidLayouts(),
 		keys:       NewWorkspaceKeyMapFromConfig(config.Default().Keys),
@@ -143,19 +143,16 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 				m.completePathShellStyle()
 				return m, nil
 			}
-			m.focusIndex = (m.focusIndex + 1) % totalFields
-			m.updateFocus()
+			m.advanceFocus(1)
 			return m, nil
 
 		case key.Matches(msg, m.keys.BackTab):
-			m.focusIndex = (m.focusIndex - 1 + totalFields) % totalFields
-			m.updateFocus()
+			m.advanceFocus(-1)
 			return m, nil
 
 		case key.Matches(msg, m.keys.Enter):
-			if m.focusIndex < totalFields-1 {
-				m.focusIndex++
-				m.updateFocus()
+			if !m.isLastVisibleControl(m.focusIndex) {
+				m.advanceFocus(1)
 				return m, nil
 			}
 			msg, ok := m.buildSubmitMessage()
@@ -168,9 +165,11 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 			switch m.focusIndex {
 			case selectorMode:
 				m.modeIndex = (m.modeIndex - 1 + len(m.modes)) % len(m.modes)
+				m.ensureVisibleFocus(selectorMode)
 				return m, nil
 			case selectorStrategy:
 				m.strategyIndex = (m.strategyIndex - 1 + len(m.strategies)) % len(m.strategies)
+				m.ensureVisibleFocus(selectorStrategy)
 				return m, nil
 			case selectorAgent:
 				m.agentIndex = (m.agentIndex - 1 + len(m.agents)) % len(m.agents)
@@ -184,9 +183,11 @@ func (m NewWorkspaceModel) Update(msg tea.Msg) (NewWorkspaceModel, tea.Cmd) {
 			switch m.focusIndex {
 			case selectorMode:
 				m.modeIndex = (m.modeIndex + 1) % len(m.modes)
+				m.ensureVisibleFocus(selectorMode)
 				return m, nil
 			case selectorStrategy:
 				m.strategyIndex = (m.strategyIndex + 1) % len(m.strategies)
+				m.ensureVisibleFocus(selectorStrategy)
 				return m, nil
 			case selectorAgent:
 				m.agentIndex = (m.agentIndex + 1) % len(m.agents)
@@ -224,27 +225,36 @@ func (m NewWorkspaceModel) buildSubmitMessage() (NewWorkspaceMsg, bool) {
 	}
 	path = expandPathValue(path)
 
-	candidateCount := 2
-	if raw := strings.TrimSpace(m.inputs[fieldCount].Value()); raw != "" {
-		value, err := strconv.Atoi(raw)
-		if err != nil || value <= 0 {
-			return NewWorkspaceMsg{}, false
-		}
-		candidateCount = value
+	msg := NewWorkspaceMsg{
+		Name:          name,
+		Path:          path,
+		AgentType:     m.agents[m.agentIndex],
+		Layout:        m.layouts[m.layoutIndex],
+		Mode:          m.currentMode(),
+		AgentStrategy: m.currentStrategy(),
 	}
 
-	return NewWorkspaceMsg{
-		Name:           name,
-		Path:           path,
-		AgentType:      m.agents[m.agentIndex],
-		Branch:         strings.TrimSpace(m.inputs[fieldBranch].Value()),
-		BaseBranch:     strings.TrimSpace(m.inputs[fieldBaseBranch].Value()),
-		Prompt:         strings.TrimSpace(m.inputs[fieldPrompt].Value()),
-		CandidateCount: candidateCount,
-		Layout:         m.layouts[m.layoutIndex],
-		Mode:           m.modes[m.modeIndex],
-		AgentStrategy:  m.strategies[m.strategyIndex],
-	}, true
+	switch m.currentMode() {
+	case workspace.CreateModeNewWorktree:
+		msg.Branch = strings.TrimSpace(m.inputs[fieldBranch].Value())
+		msg.BaseBranch = strings.TrimSpace(m.inputs[fieldBaseBranch].Value())
+	case workspace.CreateModeExperimentRun:
+		msg.BaseBranch = strings.TrimSpace(m.inputs[fieldBaseBranch].Value())
+		msg.Prompt = strings.TrimSpace(m.inputs[fieldPrompt].Value())
+		if m.currentStrategy() == workspace.ExperimentAgentSelected {
+			candidateCount := 2
+			if raw := strings.TrimSpace(m.inputs[fieldCount].Value()); raw != "" {
+				value, err := strconv.Atoi(raw)
+				if err != nil || value <= 0 {
+					return NewWorkspaceMsg{}, false
+				}
+				candidateCount = value
+			}
+			msg.CandidateCount = candidateCount
+		}
+	}
+
+	return msg, true
 }
 
 func (m *NewWorkspaceModel) refreshPathSuggestions() {
@@ -373,29 +383,35 @@ func (m *NewWorkspaceModel) updateFocus() {
 func (m NewWorkspaceModel) View() string {
 	t := m.theme
 
-	title := t.AppTitle.Render(" New Workspace")
-	labels := []string{"  Name:", "  Path:", "Branch:", "  Base:", "Prompt:", " Count:"}
-
+	title := t.AppTitle.Render(modeTitle(m.currentMode()))
 	var rows []string
-	for i := range m.inputs {
-		label := labels[i]
-		if i == m.focusIndex {
-			label = t.StatusWaiting.Render(label)
-		} else {
-			label = t.Dim.Render(label)
-		}
-		rows = append(rows, fmt.Sprintf("%s %s", label, m.inputs[i].View()))
-		if i == int(fieldPath) {
+	for _, control := range m.visibleControls() {
+		switch control {
+		case int(fieldName):
+			rows = append(rows, fmt.Sprintf("%s %s", focusLabel(t, " Title:", m.focusIndex == control), m.inputs[fieldName].View()))
+		case int(fieldPath):
+			rows = append(rows, fmt.Sprintf("%s %s", focusLabel(t, pathLabel(m.currentMode()), m.focusIndex == control), m.inputs[fieldPath].View()))
 			if hint := renderPathSuggestionHint(t, m.inputs[fieldPath]); hint != "" {
 				rows = append(rows, hint)
 			}
+		case int(fieldBranch):
+			rows = append(rows, fmt.Sprintf("%s %s", focusLabel(t, "Branch:", m.focusIndex == control), m.inputs[fieldBranch].View()))
+		case int(fieldBaseBranch):
+			rows = append(rows, fmt.Sprintf("%s %s", focusLabel(t, "  Base:", m.focusIndex == control), m.inputs[fieldBaseBranch].View()))
+		case int(fieldPrompt):
+			rows = append(rows, fmt.Sprintf("%s %s", focusLabel(t, "Prompt:", m.focusIndex == control), m.inputs[fieldPrompt].View()))
+		case int(fieldCount):
+			rows = append(rows, fmt.Sprintf("%s %s", focusLabel(t, " Count:", m.focusIndex == control), m.inputs[fieldCount].View()))
+		case selectorMode:
+			rows = append(rows, fmt.Sprintf("%s %s", focusLabel(t, "  Mode:", m.focusIndex == control), renderChoices(t, modeStrings(m.modes), m.modeIndex, m.focusIndex == control)))
+		case selectorStrategy:
+			rows = append(rows, fmt.Sprintf("%s %s", focusLabel(t, "Strategy:", m.focusIndex == control), renderChoices(t, strategyStrings(m.strategies), m.strategyIndex, m.focusIndex == control)))
+		case selectorAgent:
+			rows = append(rows, fmt.Sprintf("%s %s", focusLabel(t, " Agent:", m.focusIndex == control), renderChoices(t, agentStrings(m.agents), m.agentIndex, m.focusIndex == control)))
+		case selectorLayout:
+			rows = append(rows, fmt.Sprintf("%s %s", focusLabel(t, "Layout:", m.focusIndex == control), renderChoices(t, layoutStrings(m.layouts), m.layoutIndex, m.focusIndex == control)))
 		}
 	}
-
-	rows = append(rows, fmt.Sprintf("%s %s", focusLabel(t, "  Mode:", m.focusIndex == selectorMode), renderChoices(t, modeStrings(m.modes), m.modeIndex, m.focusIndex == selectorMode)))
-	rows = append(rows, fmt.Sprintf("%s %s", focusLabel(t, "Strategy:", m.focusIndex == selectorStrategy), renderChoices(t, strategyStrings(m.strategies), m.strategyIndex, m.focusIndex == selectorStrategy)))
-	rows = append(rows, fmt.Sprintf("%s %s", focusLabel(t, " Agent:", m.focusIndex == selectorAgent), renderChoices(t, agentStrings(m.agents), m.agentIndex, m.focusIndex == selectorAgent)))
-	rows = append(rows, fmt.Sprintf("%s %s", focusLabel(t, "Layout:", m.focusIndex == selectorLayout), renderChoices(t, layoutStrings(m.layouts), m.layoutIndex, m.focusIndex == selectorLayout)))
 
 	help := t.Dim.Render(fmt.Sprintf(
 		"  %s: complete path  %s: next/create  %s/%s: select  %s: cancel",
@@ -408,6 +424,78 @@ func (m NewWorkspaceModel) View() string {
 
 	content := title + "\n\n" + strings.Join(rows, "\n") + "\n\n" + help
 	return t.DialogBorder.Padding(1, 2).Width(68).Render(content)
+}
+
+func (m NewWorkspaceModel) currentMode() workspace.CreateMode {
+	return m.modes[m.modeIndex]
+}
+
+func (m NewWorkspaceModel) currentStrategy() workspace.ExperimentAgentStrategy {
+	return m.strategies[m.strategyIndex]
+}
+
+func (m NewWorkspaceModel) visibleControls() []int {
+	controls := []int{int(fieldName), selectorMode, int(fieldPath)}
+
+	switch m.currentMode() {
+	case workspace.CreateModeNewWorktree:
+		controls = append(controls, int(fieldBranch), int(fieldBaseBranch), selectorAgent)
+	case workspace.CreateModeExperimentRun:
+		controls = append(controls, int(fieldBaseBranch), int(fieldPrompt), selectorStrategy)
+		if m.currentStrategy() == workspace.ExperimentAgentSelected {
+			controls = append(controls, selectorAgent, int(fieldCount))
+		}
+	default:
+		controls = append(controls, selectorAgent)
+	}
+
+	controls = append(controls, selectorLayout)
+	return controls
+}
+
+func (m *NewWorkspaceModel) advanceFocus(step int) {
+	controls := m.visibleControls()
+	if len(controls) == 0 {
+		return
+	}
+
+	position := 0
+	for i, control := range controls {
+		if control == m.focusIndex {
+			position = i
+			break
+		}
+	}
+
+	position = (position + step + len(controls)) % len(controls)
+	m.focusIndex = controls[position]
+	m.updateFocus()
+}
+
+func (m *NewWorkspaceModel) ensureVisibleFocus(preferred int) {
+	controls := m.visibleControls()
+	for _, control := range controls {
+		if control == m.focusIndex {
+			m.updateFocus()
+			return
+		}
+	}
+	for _, control := range controls {
+		if control == preferred {
+			m.focusIndex = control
+			m.updateFocus()
+			return
+		}
+	}
+	if len(controls) > 0 {
+		m.focusIndex = controls[0]
+		m.updateFocus()
+	}
+}
+
+func (m NewWorkspaceModel) isLastVisibleControl(index int) bool {
+	controls := m.visibleControls()
+	return len(controls) > 0 && controls[len(controls)-1] == index
 }
 
 func focusLabel(t theme.Theme, label string, focused bool) string {
@@ -462,7 +550,7 @@ func layoutStrings(layouts []workspace.LayoutType) []string {
 func modeStrings(modes []workspace.CreateMode) []string {
 	values := make([]string, len(modes))
 	for i, mode := range modes {
-		values[i] = string(mode)
+		values[i] = modeLabel(mode)
 	}
 	return values
 }
@@ -470,9 +558,43 @@ func modeStrings(modes []workspace.CreateMode) []string {
 func strategyStrings(strategies []workspace.ExperimentAgentStrategy) []string {
 	values := make([]string, len(strategies))
 	for i, strategy := range strategies {
-		values[i] = string(strategy)
+		values[i] = strategyLabel(strategy)
 	}
 	return values
+}
+
+func modeTitle(mode workspace.CreateMode) string {
+	if mode == workspace.CreateModeExperimentRun {
+		return " New Experiment"
+	}
+	return " New Workspace"
+}
+
+func pathLabel(mode workspace.CreateMode) string {
+	if mode == workspace.CreateModeExistingCheckout {
+		return "Checkout:"
+	}
+	return "  Repo:"
+}
+
+func modeLabel(mode workspace.CreateMode) string {
+	switch mode {
+	case workspace.CreateModeNewWorktree:
+		return "new worktree"
+	case workspace.CreateModeExperimentRun:
+		return "experiment run"
+	default:
+		return "existing checkout"
+	}
+}
+
+func strategyLabel(strategy workspace.ExperimentAgentStrategy) string {
+	switch strategy {
+	case workspace.ExperimentAgentSelected:
+		return "selected agent"
+	default:
+		return "all supported"
+	}
 }
 
 func renderPathSuggestionHint(t theme.Theme, input textinput.Model) string {
