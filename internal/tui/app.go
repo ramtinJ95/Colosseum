@@ -34,6 +34,9 @@ type StatusUpdateMsg status.Update
 type errMsg struct{ err error }
 
 type workspaceCreatedMsg struct{ ws *workspace.Workspace }
+type experimentCreatedMsg struct {
+	result *workspace.ExperimentCreateResult
+}
 
 type workspaceDeletedMsg struct{ id string }
 type broadcastCompletedMsg struct{ result workspace.BroadcastResult }
@@ -145,6 +148,16 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, a.loadWorkspaces)
 		return a, tea.Batch(cmds...)
 
+	case experimentCreatedMsg:
+		a.state = viewNormal
+		created := len(msg.result.Workspaces)
+		a.statusBar = fmt.Sprintf("Created experiment %q with %d workspaces", msg.result.Experiment.Title, created)
+		if len(msg.result.Broadcast.Delivered) > 0 || len(msg.result.Broadcast.Failed) > 0 {
+			a.statusBar += ". " + formatBroadcastStatus(msg.result.Broadcast)
+		}
+		cmds = append(cmds, a.loadWorkspaces)
+		return a, tea.Batch(cmds...)
+
 	case workspaceDeletedMsg:
 		a.state = viewNormal
 		a.statusBar = "Workspace deleted"
@@ -189,7 +202,7 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, a.keys.Delete):
 			if ws := a.sidebar.SelectedWorkspace(); ws != nil {
 				a.state = viewDeleteConfirm
-				a.delDialog = dialog.NewDelete(ws.ID, ws.Title).
+				a.delDialog = dialog.NewDelete(ws.ID, ws.Title, ws.CheckoutOwnership == workspace.OwnershipColosseumManaged).
 					WithTheme(a.theme).
 					WithKeyMap(dialog.DeleteKeyMapFromConfig(a.keyConfig))
 			}
@@ -308,7 +321,7 @@ func (a App) updateNewDialog(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dialog.NewWorkspaceMsg:
 		nw := msg.(dialog.NewWorkspaceMsg)
 		a.state = viewNormal
-		a.statusBar = fmt.Sprintf("Creating workspace %q...", nw.Name)
+		a.statusBar = fmt.Sprintf("Creating %s %q...", nw.Mode, nw.Name)
 		return a, a.createWorkspace(nw)
 	}
 
@@ -530,11 +543,47 @@ func (a App) createWorkspace(nw dialog.NewWorkspaceMsg) tea.Cmd {
 		if err != nil {
 			return errMsg{err: fmt.Errorf("resolve path: %w", err)}
 		}
-		ws, err := a.manager.Create(context.Background(), nw.Name, nw.AgentType, absPath, nw.Branch, nw.Layout)
-		if err != nil {
-			return errMsg{err: fmt.Errorf("create workspace: %w", err)}
+		switch nw.Mode {
+		case workspace.CreateModeNewWorktree:
+			ws, err := a.manager.CreateWithWorktree(context.Background(), workspace.ManagedWorkspaceRequest{
+				Title:      nw.Name,
+				AgentType:  nw.AgentType,
+				RepoRoot:   absPath,
+				Branch:     nw.Branch,
+				BaseBranch: nw.BaseBranch,
+				Layout:     nw.Layout,
+			})
+			if err != nil {
+				return errMsg{err: fmt.Errorf("create worktree workspace: %w", err)}
+			}
+			return workspaceCreatedMsg{ws: ws}
+		case workspace.CreateModeExperimentRun:
+			result, err := a.manager.CreateExperiment(context.Background(), workspace.ExperimentRequest{
+				Title:          nw.Name,
+				Prompt:         nw.Prompt,
+				RepoRoot:       absPath,
+				BaseBranch:     nw.BaseBranch,
+				CandidateCount: nw.CandidateCount,
+				AgentStrategy:  nw.AgentStrategy,
+				AgentType:      nw.AgentType,
+				Layout:         nw.Layout,
+			})
+			if err != nil {
+				return errMsg{err: fmt.Errorf("create experiment: %w", err)}
+			}
+			return experimentCreatedMsg{result: result}
+		default:
+			ws, err := a.manager.CreateStandalone(context.Background(), workspace.StandaloneWorkspaceRequest{
+				Title:        nw.Name,
+				AgentType:    nw.AgentType,
+				CheckoutPath: absPath,
+				Layout:       nw.Layout,
+			})
+			if err != nil {
+				return errMsg{err: fmt.Errorf("create workspace: %w", err)}
+			}
+			return workspaceCreatedMsg{ws: ws}
 		}
-		return workspaceCreatedMsg{ws: ws}
 	}
 }
 

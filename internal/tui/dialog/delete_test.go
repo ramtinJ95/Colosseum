@@ -8,7 +8,7 @@ import (
 )
 
 func TestDeleteUsesConfiguredConfirmBinding(t *testing.T) {
-	model := NewDelete("ws-1", "demo").WithKeyMap(DeleteKeyMap{
+	model := NewDelete("ws-1", "demo", false).WithKeyMap(DeleteKeyMap{
 		Confirm: key.NewBinding(key.WithKeys("x")),
 		Cancel:  key.NewBinding(key.WithKeys("esc")),
 	})

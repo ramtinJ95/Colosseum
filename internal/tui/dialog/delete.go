@@ -16,19 +16,21 @@ type DeleteConfirmMsg struct {
 type DeleteCancelMsg struct{}
 
 type DeleteModel struct {
-	WorkspaceID    string
-	WorkspaceTitle string
-	confirmed      bool
-	keys           DeleteKeyMap
-	theme          theme.Theme
+	WorkspaceID     string
+	WorkspaceTitle  string
+	ManagedCheckout bool
+	confirmed       bool
+	keys            DeleteKeyMap
+	theme           theme.Theme
 }
 
-func NewDelete(id, title string) DeleteModel {
+func NewDelete(id, title string, managedCheckout bool) DeleteModel {
 	return DeleteModel{
-		WorkspaceID:    id,
-		WorkspaceTitle: title,
-		keys:           DeleteKeyMapFromConfig(config.Default().Keys),
-		theme:          theme.DefaultTheme(),
+		WorkspaceID:     id,
+		WorkspaceTitle:  title,
+		ManagedCheckout: managedCheckout,
+		keys:            DeleteKeyMapFromConfig(config.Default().Keys),
+		theme:           theme.DefaultTheme(),
 	}
 }
 
@@ -51,7 +53,12 @@ func (m DeleteModel) View() string {
 	t := m.theme
 
 	title := t.StatusError.Bold(true).Render(" Delete Workspace")
-	prompt := fmt.Sprintf("\n  Delete %q?\n  This will kill the tmux session.\n", m.WorkspaceTitle)
+	prompt := fmt.Sprintf("\n  Delete %q?\n", m.WorkspaceTitle)
+	if m.ManagedCheckout {
+		prompt += "  This will kill the tmux session and remove the managed worktree.\n"
+	} else {
+		prompt += "  This will kill the tmux session and detach the workspace.\n"
+	}
 	help := t.Dim.Render(fmt.Sprintf("  %s: confirm  %s: cancel", BindingLabel(m.keys.Confirm), BindingLabel(m.keys.Cancel)))
 
 	content := title + prompt + "\n" + help
