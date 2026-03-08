@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ type mockSessionCreator struct {
 	splitCalls    []mockSplitCall
 	switchCalls   []string
 	sendKeysCalls []mockSendKeysCall
+	events        *[]string
 	createCount   int
 	splitCount    int
 	createErr     error
@@ -52,6 +54,7 @@ type mockCheckoutLifecycle struct {
 	createSnapshots  map[string]worktrunk.Snapshot
 	createCalls      []mockWorktreeCreateCall
 	removeCalls      []mockWorktreeRemoveCall
+	events           *[]string
 	createErr        error
 	removeErr        error
 }
@@ -86,6 +89,9 @@ func (m *mockSessionCreator) CreateSession(_ context.Context, name string, start
 
 func (m *mockSessionCreator) KillSession(_ context.Context, name string) error {
 	m.killCalls = append(m.killCalls, name)
+	if m.events != nil {
+		*m.events = append(*m.events, "kill:"+name)
+	}
 	return m.killErr
 }
 
@@ -155,6 +161,9 @@ func (m *mockCheckoutLifecycle) Create(_ context.Context, repoPath, branch, base
 
 func (m *mockCheckoutLifecycle) Remove(_ context.Context, repoPath string, branches ...string) error {
 	m.removeCalls = append(m.removeCalls, mockWorktreeRemoveCall{RepoPath: repoPath, Branches: append([]string(nil), branches...)})
+	if m.events != nil {
+		*m.events = append(*m.events, "remove:"+strings.Join(branches, ","))
+	}
 	return m.removeErr
 }
 
@@ -376,6 +385,44 @@ func TestManagerDeleteReturnsKillError(t *testing.T) {
 	}
 	if len(remaining) != 1 {
 		t.Fatalf("expected workspace to remain after failed delete, got %d", len(remaining))
+	}
+}
+
+func TestManagerDeleteManagedCheckoutKeepsRuntimeWhenRemoveFails(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	sessions := &mockSessionCreator{}
+	mgr, checkouts, _ := newTestManager(store, sessions)
+
+	ws, err := mgr.CreateWithWorktree(context.Background(), ManagedWorkspaceRequest{
+		Title:      "managed-remove-fail",
+		AgentType:  agent.Codex,
+		RepoRoot:   "/repo",
+		Branch:     "feature-remove",
+		BaseBranch: "main",
+		Layout:     LayoutAgent,
+	})
+	if err != nil {
+		t.Fatalf("CreateWithWorktree: %v", err)
+	}
+
+	checkouts.removeErr = errors.New("dirty worktree")
+	if err := mgr.Delete(context.Background(), ws.ID); err == nil {
+		t.Fatal("expected delete to fail")
+	}
+	if len(sessions.killCalls) != 0 {
+		t.Fatalf("kill calls = %v, want none", sessions.killCalls)
+	}
+
+	state, err := store.LoadState()
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	if len(state.Workspaces) != 1 {
+		t.Fatalf("workspaces = %d, want 1", len(state.Workspaces))
+	}
+	if len(state.Checkouts) != 1 {
+		t.Fatalf("checkouts = %d, want 1", len(state.Checkouts))
 	}
 }
 
@@ -626,8 +673,10 @@ func TestManagerBroadcastReportsMissingWorkspace(t *testing.T) {
 func TestManagerCreateWithWorktreePersistsManagedCheckout(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
-	sessions := &mockSessionCreator{}
+	events := []string{}
+	sessions := &mockSessionCreator{events: &events}
 	mgr, checkouts, _ := newTestManager(store, sessions)
+	checkouts.events = &events
 
 	ws, err := mgr.CreateWithWorktree(context.Background(), ManagedWorkspaceRequest{
 		Title:      "managed",
@@ -670,6 +719,9 @@ func TestManagerCreateWithWorktreePersistsManagedCheckout(t *testing.T) {
 	}
 	if got := checkouts.removeCalls[0].Branches; len(got) != 1 || got[0] != "feature-auth" {
 		t.Fatalf("remove branches = %v, want [feature-auth]", got)
+	}
+	if len(events) < 2 || events[0] != "remove:feature-auth" || events[1] != "kill:"+ws.SessionName {
+		t.Fatalf("events = %v, want remove before kill", events)
 	}
 }
 

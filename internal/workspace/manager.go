@@ -409,10 +409,6 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("workspace %q not found", id)
 	}
 
-	if err := m.sessions.KillSession(ctx, m.workspaceSessionName(ws)); err != nil && !tmux.IsSessionNotFound(err) {
-		return fmt.Errorf("killing session for %q: %w", ws.Title, err)
-	}
-
 	removeCheckout := false
 	var checkoutRecord Checkout
 	if ws.CheckoutID != "" {
@@ -428,6 +424,10 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 		if err := m.checkouts.Remove(ctx, checkoutRecord.RepoRoot, checkoutRecord.Branch); err != nil {
 			return fmt.Errorf("removing worktree %q: %w", checkoutRecord.Branch, err)
 		}
+	}
+
+	if err := m.sessions.KillSession(ctx, m.workspaceSessionName(ws)); err != nil && !tmux.IsSessionNotFound(err) {
+		return fmt.Errorf("killing session for %q: %w", ws.Title, err)
 	}
 
 	if err := m.store.UpdateState(func(next *State) error {
