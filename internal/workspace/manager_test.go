@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ramtinj/colosseum/internal/agent"
 	"github.com/ramtinj/colosseum/internal/tmux"
@@ -38,8 +39,9 @@ type mockSplitCall struct {
 }
 
 type mockSendKeysCall struct {
-	Target string
-	Keys   string
+	Target     string
+	Keys       string
+	InputDelay time.Duration
 }
 
 func (m *mockSessionCreator) CreateSession(_ context.Context, name string, startDir string) (string, error) {
@@ -75,8 +77,8 @@ func (m *mockSessionCreator) SwitchClient(_ context.Context, name string) error 
 	return nil
 }
 
-func (m *mockSessionCreator) SendKeys(_ context.Context, target string, keys string) error {
-	m.sendKeysCalls = append(m.sendKeysCalls, mockSendKeysCall{Target: target, Keys: keys})
+func (m *mockSessionCreator) SendKeys(_ context.Context, target string, keys string, inputDelay time.Duration) error {
+	m.sendKeysCalls = append(m.sendKeysCalls, mockSendKeysCall{Target: target, Keys: keys, InputDelay: inputDelay})
 	if err, ok := m.sendKeysErrs[target]; ok {
 		return err
 	}
