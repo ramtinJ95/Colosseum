@@ -168,10 +168,16 @@ func (c *Client) ResolvePath(ctx context.Context, checkoutPath string) (Snapshot
 	var info Info
 	found := false
 	for _, candidate := range infos {
-		if candidate.Kind == "worktree" && candidate.PathValue() == normalized {
+		if candidate.Kind != "worktree" {
+			continue
+		}
+		candidatePath := candidate.PathValue()
+		if !pathContains(normalized, candidatePath) {
+			continue
+		}
+		if !found || len(candidatePath) > len(info.PathValue()) {
 			info = candidate
 			found = true
-			break
 		}
 	}
 	if !found {
@@ -277,4 +283,18 @@ func (c *Client) mergeBase(ctx context.Context, repoPath, branch, base string) (
 
 func NormalizePath(path string) string {
 	return filepath.Clean(path)
+}
+
+func pathContains(path string, root string) bool {
+	if NormalizePath(path) == NormalizePath(root) {
+		return true
+	}
+	rel, err := filepath.Rel(NormalizePath(root), NormalizePath(path))
+	if err != nil {
+		return false
+	}
+	if rel == "." {
+		return true
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
