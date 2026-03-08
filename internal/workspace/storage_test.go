@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -133,5 +134,46 @@ func TestStoreEmptyFile(t *testing.T) {
 	}
 	if len(loaded) != 0 {
 		t.Errorf("expected empty slice, got %d workspaces", len(loaded))
+	}
+}
+
+func TestStoreLoadsLegacyWorkspaceArray(t *testing.T) {
+	dir := t.TempDir()
+	storePath := filepath.Join(dir, "workspaces.json")
+
+	legacy := []Workspace{newTestWorkspace("id-1", "legacy")}
+	data, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if err := os.WriteFile(storePath, data, 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	store := NewStore(storePath)
+	state, err := store.LoadState()
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	if len(state.Workspaces) != 1 {
+		t.Fatalf("workspaces = %d, want 1", len(state.Workspaces))
+	}
+	if got := state.Workspaces[0].Title; got != "legacy" {
+		t.Fatalf("title = %q, want legacy", got)
+	}
+	if len(state.Repositories) != 1 {
+		t.Fatalf("repositories = %d, want 1", len(state.Repositories))
+	}
+	if len(state.Checkouts) != 1 {
+		t.Fatalf("checkouts = %d, want 1", len(state.Checkouts))
+	}
+	if state.Workspaces[0].RepositoryID == "" {
+		t.Fatal("expected migrated workspace repository id")
+	}
+	if state.Workspaces[0].CheckoutID == "" {
+		t.Fatal("expected migrated workspace checkout id")
+	}
+	if state.Checkouts[0].Ownership != OwnershipAttached {
+		t.Fatalf("checkout ownership = %q, want %q", state.Checkouts[0].Ownership, OwnershipAttached)
 	}
 }
