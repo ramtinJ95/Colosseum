@@ -6,6 +6,7 @@ import (
 
 	"github.com/ramtinj/colosseum/internal/tmux"
 	"github.com/ramtinj/colosseum/internal/workspace"
+	"github.com/ramtinj/colosseum/internal/worktrunk"
 )
 
 func stateDir() string {
@@ -30,5 +31,5 @@ func newTmuxClient() *tmux.Client {
 }
 
 func newManager(store *workspace.Store, client *tmux.Client) *workspace.Manager {
-	return workspace.NewManager(store, client, cfg.Tmux.SessionPrefix)
+	return workspace.NewManager(store, client, worktrunk.NewClient(), cfg.Tmux.SessionPrefix)
 }
