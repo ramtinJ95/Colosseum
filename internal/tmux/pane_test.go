@@ -172,6 +172,29 @@ func TestSendKeysCanForcePasteForSingleLine(t *testing.T) {
 	assertArgs(t, mock.Calls[2].Args, []string{"send-keys", "-t", "%3", "Enter"})
 }
 
+func TestSendKeysCanDisableBracketedPaste(t *testing.T) {
+	mock := NewMockCommander(
+		MockResponse{Output: "", Err: nil},
+		MockResponse{Output: "", Err: nil},
+		MockResponse{Output: "", Err: nil},
+	)
+	client := NewClient(mock)
+
+	err := client.SendKeys(context.Background(), "%3", "line1\nline2", SendOptions{DisableBracketedPaste: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(mock.Calls) != 3 {
+		t.Fatalf("expected 3 tmux calls, got %d", len(mock.Calls))
+	}
+
+	setBufferArgs := mock.Calls[0].Args
+	assertArgs(t, setBufferArgs[3:], []string{"--", "line1\nline2"})
+	assertArgs(t, mock.Calls[1].Args, []string{"paste-buffer", "-d", "-r", "-b", setBufferArgs[2], "-t", "%3"})
+	assertArgs(t, mock.Calls[2].Args, []string{"send-keys", "-t", "%3", "Enter"})
+}
+
 func TestListPanes(t *testing.T) {
 	mock := NewMockCommander(MockResponse{
 		Output: "%1\t120\t40\n%2\t60\t40",
