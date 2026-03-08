@@ -84,7 +84,7 @@ func TestSendKeys(t *testing.T) {
 	)
 	client := NewClient(mock)
 
-	err := client.SendKeys(context.Background(), "%3", "ls -la")
+	err := client.SendKeys(context.Background(), "%3", "ls -la", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestSendKeysUsesPasteBufferForMultilineInput(t *testing.T) {
 	)
 	client := NewClient(mock)
 
-	err := client.SendKeys(context.Background(), "%3", "line1\nline2")
+	err := client.SendKeys(context.Background(), "%3", "line1\nline2", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -1,6 +1,9 @@
 package agent
 
-import "regexp"
+import (
+	"regexp"
+	"time"
+)
 
 type AgentType string
 
@@ -45,6 +48,7 @@ type AgentDef struct {
 	Binary          string
 	LaunchFlags     []string
 	YoloFlags       []string
+	InputDelay      time.Duration
 	IgnorePatterns  []*regexp.Regexp
 	WorkingPatterns []*regexp.Regexp
 	WaitingPatterns []*regexp.Regexp

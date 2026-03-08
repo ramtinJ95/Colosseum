@@ -54,12 +54,15 @@ func (c *Client) CapturePaneTitle(ctx context.Context, target string) (string, e
 	return output, nil
 }
 
-func (c *Client) SendKeys(ctx context.Context, target string, keys string) error {
+func (c *Client) SendKeys(ctx context.Context, target string, keys string, inputDelay time.Duration) error {
 	if strings.Contains(keys, "\n") {
-		return c.pasteBuffer(ctx, target, keys)
+		return c.pasteBuffer(ctx, target, keys, inputDelay)
 	}
 	if _, err := c.Commander.Run(ctx, "send-keys", "-t", target, "-l", keys); err != nil {
 		return fmt.Errorf("send keys to %q: %w", target, err)
+	}
+	if inputDelay > 0 {
+		time.Sleep(inputDelay)
 	}
 	if _, err := c.Commander.Run(ctx, "send-keys", "-t", target, "Enter"); err != nil {
 		return fmt.Errorf("send enter to %q: %w", target, err)
@@ -75,13 +78,16 @@ func (c *Client) SendLiteralKeys(ctx context.Context, target string, text string
 	return nil
 }
 
-func (c *Client) pasteBuffer(ctx context.Context, target string, text string) error {
+func (c *Client) pasteBuffer(ctx context.Context, target string, text string, inputDelay time.Duration) error {
 	bufferName := fmt.Sprintf("colosseum-%d", time.Now().UnixNano())
 	if _, err := c.Commander.Run(ctx, "set-buffer", "-b", bufferName, "--", text); err != nil {
 		return fmt.Errorf("set paste buffer for %q: %w", target, err)
 	}
 	if _, err := c.Commander.Run(ctx, "paste-buffer", "-d", "-p", "-r", "-b", bufferName, "-t", target); err != nil {
 		return fmt.Errorf("paste buffer into %q: %w", target, err)
+	}
+	if inputDelay > 0 {
+		time.Sleep(inputDelay)
 	}
 	if _, err := c.Commander.Run(ctx, "send-keys", "-t", target, "Enter"); err != nil {
 		return fmt.Errorf("send enter to %q: %w", target, err)

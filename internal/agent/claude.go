@@ -1,6 +1,9 @@
 package agent
 
-import "regexp"
+import (
+	"regexp"
+	"time"
+)
 
 func init() {
 	Register(&AgentDef{
@@ -8,6 +11,7 @@ func init() {
 		Binary:      "claude",
 		LaunchFlags: []string{},
 		YoloFlags:   []string{"--dangerously-skip-permissions"},
+		InputDelay:  100 * time.Millisecond,
 		IgnorePatterns: []*regexp.Regexp{
 			regexp.MustCompile(`Tokens:.*Remaining:`),
 			regexp.MustCompile(`^\s*Opus .* \| .*`),
