@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -421,7 +422,7 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 	}
 
 	if removeCheckout {
-		if err := m.checkouts.Remove(ctx, checkoutRecord.RepoRoot, checkoutRecord.Branch); err != nil {
+		if err := m.removeManagedCheckout(ctx, checkoutRecord); err != nil {
 			return fmt.Errorf("removing worktree %q: %w", checkoutRecord.Branch, err)
 		}
 	}
@@ -456,6 +457,14 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+func (m *Manager) removeManagedCheckout(ctx context.Context, checkoutRecord Checkout) error {
+	err := m.checkouts.Remove(ctx, checkoutRecord.RepoRoot, checkoutRecord.Branch)
+	if err == nil || isMissingCheckoutError(err) {
+		return nil
+	}
+	return err
 }
 
 func (m *Manager) List() ([]Workspace, error) {
@@ -749,12 +758,35 @@ func filterIDs(values []string, needle string) []string {
 	return filtered
 }
 
+func isMissingCheckoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var cmdErr *worktrunk.CommandError
+	if errors.As(err, &cmdErr) {
+		return containsMissingResourceMessage(cmdErr.Stderr)
+	}
+
+	return containsMissingResourceMessage(err.Error())
+}
+
+func containsMissingResourceMessage(message string) bool {
+	lower := strings.ToLower(message)
+	return strings.Contains(lower, "not found") || strings.Contains(lower, "no such file or directory")
+}
+
 func generatedStandaloneBranch(title string) string {
-	return fmt.Sprintf("feat-%s-%s", slugify(title), time.Now().Format("20060102"))
+	return fmt.Sprintf("feat-%s-%s", slugify(title), generatedBranchToken())
 }
 
 func generatedExperimentBranch(title string, agentType agent.AgentType, index int) string {
-	return fmt.Sprintf("exp-%s-%s-%s-a%d", slugify(title), time.Now().Format("20060102"), agentType, index)
+	return fmt.Sprintf("exp-%s-%s-%s-a%d", slugify(title), generatedBranchToken(), agentType, index)
+}
+
+func generatedBranchToken() string {
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	return fmt.Sprintf("%s-%s", time.Now().Format("20060102"), suffix[:8])
 }
 
 func generatedExperimentWorkspaceTitle(title string, agentType agent.AgentType, index int, total int) string {

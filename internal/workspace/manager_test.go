@@ -426,6 +426,61 @@ func TestManagerDeleteManagedCheckoutKeepsRuntimeWhenRemoveFails(t *testing.T) {
 	}
 }
 
+func TestManagerDeleteManagedCheckoutRetriesWhenCheckoutAlreadyGone(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	sessions := &mockSessionCreator{killErr: errors.New("tmux unavailable")}
+	mgr, checkouts, _ := newTestManager(store, sessions)
+
+	ws, err := mgr.CreateWithWorktree(context.Background(), ManagedWorkspaceRequest{
+		Title:      "managed-kill-fail",
+		AgentType:  agent.Codex,
+		RepoRoot:   "/repo",
+		Branch:     "feature-kill",
+		BaseBranch: "main",
+		Layout:     LayoutAgent,
+	})
+	if err != nil {
+		t.Fatalf("CreateWithWorktree: %v", err)
+	}
+
+	if err := mgr.Delete(context.Background(), ws.ID); err == nil {
+		t.Fatal("expected delete to fail")
+	}
+	if len(checkouts.removeCalls) != 1 {
+		t.Fatalf("remove calls = %v, want one successful removal before kill failure", checkouts.removeCalls)
+	}
+
+	state, err := store.LoadState()
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	if len(state.Workspaces) != 1 {
+		t.Fatalf("workspaces = %d, want 1", len(state.Workspaces))
+	}
+	if len(state.Checkouts) != 1 {
+		t.Fatalf("checkouts = %d, want 1", len(state.Checkouts))
+	}
+
+	sessions.killErr = nil
+	checkouts.removeErr = &worktrunk.CommandError{Binary: "wt", Args: []string{"remove"}, Stderr: "worktree not found"}
+
+	if err := mgr.Delete(context.Background(), ws.ID); err != nil {
+		t.Fatalf("retry Delete: %v", err)
+	}
+
+	state, err = store.LoadState()
+	if err != nil {
+		t.Fatalf("LoadState after retry: %v", err)
+	}
+	if len(state.Workspaces) != 0 {
+		t.Fatalf("workspaces after retry = %d, want 0", len(state.Workspaces))
+	}
+	if len(state.Checkouts) != 0 {
+		t.Fatalf("checkouts after retry = %d, want 0", len(state.Checkouts))
+	}
+}
+
 func TestManagerList(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
@@ -725,6 +780,49 @@ func TestManagerCreateWithWorktreePersistsManagedCheckout(t *testing.T) {
 	}
 }
 
+func TestManagerCreateWithWorktreeGeneratesUniqueBranchesAcrossRecreate(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	sessions := &mockSessionCreator{}
+	mgr, checkouts, _ := newTestManager(store, sessions)
+
+	first, err := mgr.CreateWithWorktree(context.Background(), ManagedWorkspaceRequest{
+		Title:     "Repeated Workspace",
+		AgentType: agent.Codex,
+		RepoRoot:  "/repo",
+		Layout:    LayoutAgent,
+	})
+	if err != nil {
+		t.Fatalf("first CreateWithWorktree: %v", err)
+	}
+	if err := mgr.Delete(context.Background(), first.ID); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+
+	_, err = mgr.CreateWithWorktree(context.Background(), ManagedWorkspaceRequest{
+		Title:     "Repeated Workspace",
+		AgentType: agent.Codex,
+		RepoRoot:  "/repo",
+		Layout:    LayoutAgent,
+	})
+	if err != nil {
+		t.Fatalf("second CreateWithWorktree: %v", err)
+	}
+
+	if len(checkouts.createCalls) != 2 {
+		t.Fatalf("create calls = %d, want 2", len(checkouts.createCalls))
+	}
+	if checkouts.createCalls[0].Branch == checkouts.createCalls[1].Branch {
+		t.Fatalf("generated branch reused across recreate: %q", checkouts.createCalls[0].Branch)
+	}
+	if !strings.HasPrefix(checkouts.createCalls[0].Branch, "feat-repeated-workspace-") {
+		t.Fatalf("first generated branch = %q, want feat-repeated-workspace-*", checkouts.createCalls[0].Branch)
+	}
+	if !strings.HasPrefix(checkouts.createCalls[1].Branch, "feat-repeated-workspace-") {
+		t.Fatalf("second generated branch = %q, want feat-repeated-workspace-*", checkouts.createCalls[1].Branch)
+	}
+}
+
 func TestManagerCreateExperimentCreatesCandidatesAndBroadcasts(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))
@@ -766,6 +864,61 @@ func TestManagerCreateExperimentCreatesCandidatesAndBroadcasts(t *testing.T) {
 	}
 	if len(state.Checkouts) != len(agent.Supported()) {
 		t.Fatalf("checkouts = %d, want %d", len(state.Checkouts), len(agent.Supported()))
+	}
+}
+
+func TestManagerCreateExperimentGeneratesUniqueBranchesAcrossRecreate(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	sessions := &mockSessionCreator{}
+	mgr, checkouts, _ := newTestManager(store, sessions)
+
+	first, err := mgr.CreateExperiment(context.Background(), ExperimentRequest{
+		Title:         "Auth fix",
+		RepoRoot:      "/repo",
+		BaseBranch:    "main",
+		AgentStrategy: ExperimentAgentAllSupported,
+		AgentType:     agent.Claude,
+		Layout:        LayoutAgent,
+	})
+	if err != nil {
+		t.Fatalf("first CreateExperiment: %v", err)
+	}
+	for _, ws := range first.Workspaces {
+		if err := mgr.Delete(context.Background(), ws.ID); err != nil {
+			t.Fatalf("Delete(%s): %v", ws.ID, err)
+		}
+	}
+
+	second, err := mgr.CreateExperiment(context.Background(), ExperimentRequest{
+		Title:         "Auth fix",
+		RepoRoot:      "/repo",
+		BaseBranch:    "main",
+		AgentStrategy: ExperimentAgentAllSupported,
+		AgentType:     agent.Claude,
+		Layout:        LayoutAgent,
+	})
+	if err != nil {
+		t.Fatalf("second CreateExperiment: %v", err)
+	}
+	_ = second
+
+	perRun := len(agent.Supported())
+	if len(checkouts.createCalls) != perRun*2 {
+		t.Fatalf("create calls = %d, want %d", len(checkouts.createCalls), perRun*2)
+	}
+	for i := 0; i < perRun; i++ {
+		firstBranch := checkouts.createCalls[i].Branch
+		secondBranch := checkouts.createCalls[perRun+i].Branch
+		if firstBranch == secondBranch {
+			t.Fatalf("candidate %d reused generated branch %q across recreate", i, firstBranch)
+		}
+		if !strings.HasPrefix(firstBranch, "exp-auth-fix-") {
+			t.Fatalf("first branch = %q, want exp-auth-fix-*", firstBranch)
+		}
+		if !strings.HasPrefix(secondBranch, "exp-auth-fix-") {
+			t.Fatalf("second branch = %q, want exp-auth-fix-*", secondBranch)
+		}
 	}
 }
 
