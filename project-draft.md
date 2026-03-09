@@ -6,9 +6,9 @@ A terminal-agnostic TUI for managing parallel AI coding agents across git worktr
 
 ## Vision
 
-Colosseum manages multiple AI coding agents (Claude Code, Codex, Gemini, OpenCode, Aider) running in parallel across isolated git worktrees. Each agent gets its own tmux session with a configurable pane layout, and a central TUI dashboard provides real-time status, notifications, and workspace switching.
+Colosseum manages multiple AI coding agents (Claude Code, Codex, Gemini, OpenCode, Aider) running in parallel across isolated git worktrees. Each agent gets its own tmux session with a configurable pane layout, and a central TUI dashboard provides real-time status and workspace switching.
 
-The key differentiator: **broadcast the same prompt to multiple agents in different worktrees**, then monitor their progress from a single dashboard with notification badges that tell you exactly which agent needs attention.
+The key differentiator: **broadcast the same prompt to multiple agents in different worktrees**, then monitor their progress from a single dashboard while comparing isolated candidates side by side.
 
 ---
 
@@ -41,10 +41,6 @@ The key differentiator: **broadcast the same prompt to multiple agents in differ
 │  │ │  ■ refactor     [refactor]   │                               │   │ │
 │  │ │    claude · stopped          │                               │   │ │
 │  │ │                              │                               │   │ │
-│  │ │  NOTIFICATIONS (2)           │                               │   │ │
-│  │ │  ! api-v2: permission needed │                               │   │ │
-│  │ │  ✓ fix-tests: task complete  │                               │   │ │
-│  │ │                              │                               │   │ │
 │  │ └──────────────────────────────┴───────────────────────────────┘   │ │
 │  └────────────────────────────────────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────────────────┘
@@ -55,7 +51,6 @@ The key differentiator: **broadcast the same prompt to multiple agents in differ
 - **Workspace**: A named unit of work. Maps 1:1 to a tmux session. Contains an agent pane, optionally a shell pane and log pane. Associated with a git worktree, branch, and agent type.
 - **Agent**: An AI coding CLI (Claude Code, Codex, Gemini, etc.). Each agent type has its own detection patterns and launch flags.
 - **Status**: The detected state of an agent: Working, Waiting, Idle, Stopped, or Error.
-- **Notification**: A state-transition event (e.g., agent went from Working to Waiting). Stored with unread tracking per workspace.
 - **Broadcast**: Sending the same prompt to multiple workspaces simultaneously.
 
 ### Session Model
@@ -72,112 +67,124 @@ This means:
 
 ## Features
 
+Status legend: `[x]` shipped, `[ ]` still to implement, `[-]` intentionally removed from scope.
+
 ### Workspace Management
-- Create workspaces with a specific agent, project path, and optional git worktree branch
-- Configurable pane layouts per workspace:
-  - `agent` — single pane running the agent
-  - `agent-shell` — agent left, shell right (for dev servers, manual commands)
-  - `agent-shell-logs` — agent left, shell + logs stacked right
-- Rename, delete, and reorder workspaces
-- Workspace persistence across restarts (JSON state file)
+- [x] Create a workspace from an existing checkout path
+- [x] Create a managed worktree-backed workspace through `worktrunk`
+- [x] Create an experiment run that fans out into several sibling worktree-backed workspaces
+- [x] Configurable pane layouts per workspace:
+  - [x] `agent` — single pane running the agent
+  - [x] `agent-shell` — agent left, shell right
+  - [x] `agent-shell-logs` — agent left, shell + logs stacked right
+- [ ] Rename workspaces
+- [x] Delete workspaces
+- [ ] Reorder workspaces
+- [x] Workspace persistence across restarts (JSON state file)
 
 ### Agent Support
-- Pluggable agent registry with per-agent configuration:
-  - Binary name and detection method
-  - Launch flags (including YOLO/auto-approve mode)
-  - Custom instruction injection (Claude: `--append-system-prompt`)
-  - Status detection patterns (unique per agent)
-- Supported agents at launch:
-  - Claude Code
-  - Codex CLI
-  - Gemini CLI
-  - OpenCode
-  - Aider
+- [x] Pluggable agent registry with per-agent configuration
+- [x] Binary name and detection method
+- [x] Launch flags and YOLO-mode definitions on agent records
+- [ ] YOLO mode surfaced in the TUI or CLI create flow
+- [ ] Custom instruction injection
+- [x] Status detection patterns per agent
+- [x] Claude Code supported for new workspace creation
+- [x] Codex CLI supported for new workspace creation
+- [ ] Gemini CLI supported for new workspace creation
+- [x] OpenCode supported for new workspace creation
+- [ ] Aider supported for new workspace creation
+- [x] Legacy Gemini/Aider detection compatibility for existing workspaces
 
 ### Status Detection
-- Background goroutine polls `tmux capture-pane` for each workspace (every 1-2 seconds)
-- Per-agent regex pattern matching on the last 50 lines of pane output
-- Detection signals:
-  - **Working**: `(esc to interrupt)`, braille spinner chars (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`), activity indicators
-  - **Waiting**: Permission prompts (`Yes, allow once`, `Allow always`), questions (`?` at EOL), selection menus (`❯ 1.`)
-  - **Idle**: Prompt chars (`>`, `$`, `❯`, `╰─>`) at end of last non-empty line + no recent output
-  - **Error**: Rate limit patterns (`429`), crash/panic text, auth failures
-  - **Stopped**: tmux session doesn't exist
-- Fixture-driven testing: real captured pane content stored in `testdata/fixtures/` and tested against detection functions
+- [x] Background polling of `tmux capture-pane`
+- [x] Per-agent regex pattern matching on recent pane output
+- [x] `Working` detection
+- [x] `Waiting` detection
+- [x] `Idle` detection
+- [x] `Error` detection
+- [x] `Stopped` detection
+- [x] ANSI stripping before matching
+- [x] Pane-title signal for supplementary working detection
+- [x] Spike/hysteresis filtering to reduce flicker
+- [x] Fixture-driven testing across Claude, Codex, Gemini, OpenCode, and Aider samples
 
 ### Git Worktree Integration
-- Create a git worktree per workspace, allowing multiple agents to work on the same repo in parallel on different branches
-- Configurable worktree path templates (`../{repo}-worktrees/{branch}`)
-- Broadcast a prompt to N workspaces: each agent receives the same task but works in its own isolated worktree
-- Cleanup on workspace deletion: remove worktree directory and optionally delete the branch
-- Diff viewer: compare worktree branch against base branch (main/master)
+- [x] Create a managed worktree per workspace
+- [x] Delegate worktree path templates and placement to `worktrunk`
+- [x] Ownership-aware cleanup on workspace deletion
+- [x] Experiment-run creation of several sibling managed worktrees
+- [x] Persist repository, checkout, experiment, and evaluation metadata for compare/vote readiness
+- [ ] Generic broadcast flow that auto-creates worktrees on demand
+- [ ] Diff viewer against a base branch
 
-### Notification System
-- In-memory notification store with per-workspace unread counts
-- Notifications generated on status transitions:
-  - Working → Waiting: "Permission needed" or "Question asked"
-  - Working → Idle: "Task complete"
-  - Working → Error: "Agent error" (with error type)
-  - Any → Stopped: "Agent exited"
-- Desktop notifications via `notify-send` (Linux)
-- Claude Code hook integration: listens for `idle_prompt` and `permission_prompt` hooks for more reliable notification than scraping
-- Jump-to-unread: `J` key navigates to the next workspace with unread notifications
+### Notifications
+- [-] In-app notification center and unread tracking
+- [-] Desktop notifications via `notify-send`
+- [-] Notification-driven Claude hook integration
+- [-] Jump-to-unread workflow
+- [x] Jump-to-attention shortcut for waiting/error workspaces remains in scope
 
 ### Broadcast Prompt
-- Dialog to compose a prompt and select target workspaces (multi-select)
-- Auto-create worktrees if needed (one branch per workspace, branching from the same base)
-- Sends the prompt via `tmux send-keys` to each workspace's agent pane
-- Ideal workflow: "implement feature X" → broadcast to Claude, Codex, and Gemini on separate worktrees → compare results with the diff viewer
+- [x] Dialog to compose a prompt and select target workspaces
+- [x] Multi-select target picker
+- [x] Send the prompt via `tmux send-keys` to each selected workspace
+- [x] CLI `broadcast` command
+- [x] Optional prompt broadcast immediately after experiment creation
+- [ ] Auto-create worktrees as part of the generic broadcast flow
+- [ ] In-app compare/vote workflow after broadcast fan-out
 
 ### Diff Viewer
-- Full-screen overlay triggered by `D` on a workspace
-- Computes diff between the workspace's worktree branch and a configurable base branch
-- Side-by-side rendering with additions (green) and deletions (red)
-- File list panel with navigation
-- Scroll through hunks with configurable context lines
+- [ ] Full-screen overlay triggered by `D`
+- [ ] Diff computation against a configurable base branch
+- [ ] Side-by-side rendering with additions/deletions
+- [ ] File list panel with navigation
+- [ ] Hunk scrolling with configurable context lines
 
 ### TUI Dashboard
-- Bubble Tea application with two main panels:
-  - **Sidebar** (left): workspace list with status icons, agent type, branch name, unread badges. Below: notification list.
-  - **Preview** (right): last N lines of the selected workspace's agent pane output, refreshed on each poll cycle.
-- Status icons:
-  - `●` Working (green, animated)
-  - `◉` Waiting (yellow, needs attention)
-  - `○` Idle (dim)
-  - `■` Stopped (gray)
-  - `✗` Error (red)
-- Lipgloss styling with theme support
+- [x] Bubble Tea dashboard with sidebar + preview layout
+- [x] Sidebar workspace list with status icons, agent type, and branch name
+- [-] Sidebar notification list and unread badges
+- [x] Preview of the selected workspace pane output
+- [x] Status icons for Working / Waiting / Idle / Stopped / Error
+- [x] Lipgloss styling with theme support
+- [x] New workspace dialog
+- [x] Broadcast dialog
+- [x] Delete confirmation dialog
+- [x] Help overlay
+- [ ] Filter/search workspaces
+- [ ] Repo-centric UI
 
 ### CLI
-- `colosseum` — launch the TUI dashboard
-- `colosseum new <name> --path <dir> --agent <type> [--branch <name>]` — create a workspace
-- `colosseum list` — list workspaces and their statuses
-- `colosseum attach <name>` — switch to a workspace's tmux session
-- `colosseum broadcast --prompt <text> --workspaces <w1,w2,...>` — broadcast a prompt
-- `colosseum delete <name> [--cleanup-worktree] [--delete-branch]` — delete a workspace
-- `colosseum diff <name> [--base <branch>]` — show diff for a workspace
+- [x] `colosseum` — launch the TUI dashboard
+- [x] `colosseum new` — create an existing-checkout workspace, managed worktree workspace, or experiment run
+- [x] `colosseum list`
+- [x] `colosseum attach`
+- [x] `colosseum broadcast --prompt <text> --workspaces <w1,w2,...>`
+- [x] `colosseum delete`
+- [ ] `colosseum diff`
 
 ---
 
 ## Keybindings
 
-| Key | Action |
-|-----|--------|
-| `j` / `k` or `↑` / `↓` | Navigate workspace list |
-| `Enter` | Attach to selected workspace (switch tmux session) |
-| `n` | New workspace dialog |
-| `d` | Delete workspace (with cleanup options) |
-| `b` | Broadcast prompt dialog |
-| `D` | Diff viewer for selected workspace |
-| `r` | Rename workspace |
-| `/` | Filter/search workspaces |
-| `Tab` | Cycle sidebar sections (workspaces / notifications) |
-| `m` | Mark selected workspace notifications as read |
-| `J` | Jump to next workspace needing attention (Waiting/Error) |
-| `R` | Restart agent in selected workspace |
-| `s` | Stop agent in selected workspace |
-| `?` | Help overlay |
-| `q` | Quit |
+| Status | Key | Action |
+|--------|-----|--------|
+| `[x]` | `j` / `k` | Navigate workspace list |
+| `[x]` | `Enter` | Attach to selected workspace |
+| `[x]` | `n` | New workspace dialog |
+| `[x]` | `d` | Delete workspace |
+| `[x]` | `b` | Broadcast prompt dialog |
+| `[ ]` | `D` | Diff viewer for selected workspace |
+| `[ ]` | `r` | Rename workspace |
+| `[ ]` | `/` | Filter/search workspaces |
+| `[x]` | `Tab` | Cycle sidebar sections |
+| `[-]` | `m` | Mark notifications as read |
+| `[x]` | `J` | Jump to next workspace needing attention |
+| `[ ]` | `R` | Restart agent in selected workspace |
+| `[ ]` | `s` | Stop agent in selected workspace |
+| `[x]` | `?` | Help overlay |
+| `[x]` | `q` | Quit |
 
 ---
 
@@ -221,14 +228,6 @@ colosseum/
 │   │   ├── worktree.go              #   Create, remove, list worktrees via git CLI
 │   │   ├── template.go              #   Path template resolution ({repo}, {branch}, {id})
 │   │   └── diff.go                  #   Compute diff between worktree branch and base branch
-│   │
-│   ├── notification/                # Notification system
-│   │   ├── types.go                 #   Notification struct: ID, workspace, title, body, read, time
-│   │   ├── store.go                 #   In-memory store with per-workspace unread counts
-│   │   └── desktop.go               #   Desktop notifications via notify-send
-│   │
-│   ├── hook/                        # Agent hook integration
-│   │   └── claude.go                #   Claude Code hook listener (idle_prompt, permission_prompt)
 │   │
 │   ├── config/                      # Configuration
 │   │   ├── config.go                #   Config struct, TOML loading, validation
@@ -332,12 +331,6 @@ delete_branch_on_cleanup = false
 poll_interval_ms = 1500
 capture_lines = 50
 
-[notification]
-desktop_enabled = true
-on_waiting = true
-on_idle = true
-on_error = true
-
 [theme]
 name = "catppuccin"
 ```
@@ -347,36 +340,40 @@ name = "catppuccin"
 ## Implementation Phases
 
 ### Phase 1: Foundation
-- Go module setup, directory structure
-- tmux client: session create/kill/exists/switch, pane split/capture/send-keys
-- Workspace model: struct, JSON persistence, basic CRUD
-- Minimal TUI: sidebar with hardcoded workspaces, no preview
+- [x] Go module setup and directory structure
+- [x] tmux client: session create/kill/exists/switch, pane split/capture/send-keys
+- [x] Workspace model and JSON persistence
+- [x] Minimal TUI foundation
 
 ### Phase 2: Core TUI
-- Bubble Tea app with sidebar + preview panels
-- New workspace dialog (name, path, agent picker)
-- Workspace switching via tmux switch-client
-- Status detection: background poller with Claude patterns
-- Status icons in sidebar
+- [x] Bubble Tea app with sidebar + preview panels
+- [x] New workspace dialog
+- [x] Workspace switching via `tmux switch-client`
+- [x] Status detection background poller
+- [x] Status icons in the sidebar
 
 ### Phase 3: Worktrees + Broadcast
-- Git worktree create/remove/list
-- Worktree integration in new workspace dialog
-- Broadcast prompt dialog and execution
-- Multiple agent support (Codex, Gemini, OpenCode, Aider detection patterns)
+- [x] Managed worktree create/remove/list through `worktrunk`
+- [x] Worktree integration in the new workspace dialog
+- [x] Broadcast prompt dialog and execution
+- [x] Experiment-run fan-out creation
+- [x] Multiple detection patterns for Codex, Gemini, OpenCode, and Aider
+- [ ] Gemini workspace creation support
+- [ ] Aider workspace creation support
 
 ### Phase 4: Notifications + Diff
-- Notification store with unread tracking
-- Desktop notifications via notify-send
-- Notification section in sidebar
-- Jump-to-unread navigation
-- Diff viewer overlay
+- [-] Notification store with unread tracking
+- [-] Desktop notifications via `notify-send`
+- [-] Notification section in sidebar
+- [-] Jump-to-unread navigation
+- [ ] Diff viewer overlay
 
 ### Phase 5: Polish
-- Claude Code hook integration (idle_prompt, permission_prompt)
-- Theme support
-- Workspace pane layout options (agent-only, agent-shell, agent-shell-logs)
-- CLI subcommands (new, list, attach, broadcast, delete, diff)
-- Configuration file support
-- Help overlay
-- Fixture-driven test suite for all agent detection patterns
+- [ ] Claude Code hook integration
+- [x] Theme support
+- [x] Workspace pane layout options (`agent`, `agent-shell`, `agent-shell-logs`)
+- [x] CLI subcommands (`new`, `list`, `attach`, `broadcast`, `delete`)
+- [ ] CLI `diff` subcommand
+- [x] Configuration file support
+- [x] Help overlay
+- [x] Fixture-driven test suite for all agent detection patterns
