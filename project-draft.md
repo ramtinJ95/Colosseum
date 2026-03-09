@@ -24,7 +24,7 @@ The key differentiator: **broadcast the same prompt to multiple agents in differ
 │  │ └───────────────────────┴─────────────────────────────────────┘   │ │
 │  └────────────────────────────────────────────────────────────────────┘ │
 │                                                                        │
-│  ┌─ tmux session: "colo-ctrl" (the TUI dashboard) ───────────────────┐ │
+│  ┌─ tmux session: "colo-dashboard" (the TUI dashboard) ──────────────┐ │
 │  │ ┌─ Sidebar ────────────────────┬─ Preview ────────────────────┐   │ │
 │  │ │                              │                               │   │ │
 │  │ │  WORKSPACES                  │ auth-feature (claude)         │   │ │
@@ -55,7 +55,7 @@ The key differentiator: **broadcast the same prompt to multiple agents in differ
 
 ### Session Model
 
-The TUI runs in its own tmux session (`colo-ctrl`). Each workspace is a separate tmux session (`colo-{title}`). Switching to a workspace uses `tmux switch-client`. Returning to the dashboard uses the same mechanism.
+The TUI runs in its own tmux session (`colo-dashboard` by default). Each workspace is a separate tmux session (`colo-{title}`). Launching `colosseum` bootstraps that dashboard session before the UI starts. Switching to a workspace uses `tmux switch-client`, and returning to the dashboard uses the same mechanism.
 
 This means:
 - Workspaces are fully isolated (own environment, own panes, own scrollback)
