@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -29,6 +31,9 @@ func runAttach(_ *cobra.Command, args []string) error {
 
 	for _, ws := range workspaces {
 		if ws.Title == name {
+			if strings.TrimSpace(os.Getenv("TMUX")) == "" {
+				return client.AttachSession(context.Background(), workspaceSessionName(ws))
+			}
 			return mgr.SwitchTo(context.Background(), ws.ID)
 		}
 	}

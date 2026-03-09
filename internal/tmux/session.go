@@ -32,6 +32,15 @@ func (c *Client) CreateSession(ctx context.Context, name string, startDir string
 	return strings.TrimSpace(output), nil
 }
 
+func (c *Client) CreateDetachedSessionWithCommand(ctx context.Context, name string, startDir string, command []string) error {
+	args := []string{"new-session", "-d", "-s", name, "-c", startDir}
+	args = append(args, command...)
+	if _, err := c.Commander.Run(ctx, args...); err != nil {
+		return fmt.Errorf("create detached session %q: %w", name, err)
+	}
+	return nil
+}
+
 func (c *Client) KillSession(ctx context.Context, name string) error {
 	_, err := c.Commander.Run(ctx, "kill-session", "-t", name)
 	if err != nil {
@@ -83,11 +92,27 @@ func (c *Client) SwitchClient(ctx context.Context, name string) error {
 		return fmt.Errorf("bind dashboard return key: %w", err)
 	}
 
-	_, err = c.Commander.Run(ctx, "switch-client", "-t", name)
+	return c.SwitchSession(ctx, name)
+}
+
+func (c *Client) SwitchSession(ctx context.Context, name string) error {
+	_, err := c.Commander.Run(ctx, "switch-client", "-t", name)
 	if err != nil {
 		return fmt.Errorf("switch client to %q: %w", name, err)
 	}
 	return nil
+}
+
+func (c *Client) AttachSession(ctx context.Context, name string) error {
+	_, err := c.Commander.Run(ctx, "attach-session", "-t", name)
+	if err != nil {
+		return fmt.Errorf("attach session %q: %w", name, err)
+	}
+	return nil
+}
+
+func (c *Client) CurrentSession(ctx context.Context) (string, error) {
+	return c.currentSession(ctx)
 }
 
 func (c *Client) currentSession(ctx context.Context) (string, error) {

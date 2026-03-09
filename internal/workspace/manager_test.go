@@ -277,6 +277,21 @@ func TestManagerCreate(t *testing.T) {
 	}
 }
 
+func TestManagerCreateRejectsDashboardTitle(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	mock := &mockSessionCreator{}
+	mgr, _, _ := newTestManager(store, mock)
+
+	if _, err := mgr.Create(context.Background(), "dashboard", agent.Claude, "/tmp/project", "main", LayoutAgent); err == nil {
+		t.Fatal("expected reserved dashboard title error")
+	}
+
+	if len(mock.createCalls) != 0 {
+		t.Fatalf("createCalls = %d, want 0", len(mock.createCalls))
+	}
+}
+
 func TestManagerDelete(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "workspaces.json"))

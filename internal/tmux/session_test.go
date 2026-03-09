@@ -43,6 +43,32 @@ func TestKillSession(t *testing.T) {
 	assertArgs(t, mock.Calls[0].Args, expected)
 }
 
+func TestCreateDetachedSessionWithCommand(t *testing.T) {
+	mock := NewMockCommander(MockResponse{Output: "", Err: nil})
+	client := NewClient(mock)
+
+	err := client.CreateDetachedSessionWithCommand(
+		context.Background(),
+		"colo-dashboard",
+		"/home/user/projects/myproject",
+		[]string{"env", "COLOSSEUM_DASHBOARD_INTERNAL=1", "/tmp/colosseum"},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expected := []string{
+		"new-session",
+		"-d",
+		"-s", "colo-dashboard",
+		"-c", "/home/user/projects/myproject",
+		"env",
+		"COLOSSEUM_DASHBOARD_INTERNAL=1",
+		"/tmp/colosseum",
+	}
+	assertArgs(t, mock.Calls[0].Args, expected)
+}
+
 func TestSessionExists(t *testing.T) {
 	t.Run("exists", func(t *testing.T) {
 		mock := NewMockCommander(MockResponse{Output: "", Err: nil})
@@ -124,6 +150,39 @@ func TestSwitchClientInstallsDashboardBinding(t *testing.T) {
 	assertArgs(t, mock.Calls[2].Args, []string{
 		"switch-client",
 		"-t", "colo-myproject",
+	})
+}
+
+func TestAttachSession(t *testing.T) {
+	mock := NewMockCommander(MockResponse{Output: "", Err: nil})
+	client := NewClient(mock)
+
+	if err := client.AttachSession(context.Background(), "colo-myproject"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertArgs(t, mock.Calls[0].Args, []string{
+		"attach-session",
+		"-t", "colo-myproject",
+	})
+}
+
+func TestCurrentSession(t *testing.T) {
+	mock := NewMockCommander(MockResponse{Output: "colo-dashboard\n", Err: nil})
+	client := NewClient(mock)
+
+	session, err := client.CurrentSession(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if session != "colo-dashboard" {
+		t.Fatalf("session = %q, want %q", session, "colo-dashboard")
+	}
+
+	assertArgs(t, mock.Calls[0].Args, []string{
+		"display-message",
+		"-p",
+		"#{session_name}",
 	})
 }
 

@@ -12,6 +12,22 @@ import (
 )
 
 func runDashboard(_ *cobra.Command, _ []string) error {
+	bootstrap, err := newDashboardBootstrap(newTmuxClient())
+	if err != nil {
+		return err
+	}
+	handled, err := bootstrap.Bootstrap(context.Background())
+	if err != nil {
+		return err
+	}
+	if handled {
+		return nil
+	}
+
+	return runDashboardProgram()
+}
+
+func runDashboardProgram() error {
 	store := newStore()
 	client := newTmuxClient()
 	mgr := newManager(store, client)
