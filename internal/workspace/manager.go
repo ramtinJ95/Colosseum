@@ -560,6 +560,9 @@ func (m *Manager) validateCreate(title string, agentType agent.AgentType, layout
 	if strings.TrimSpace(title) == "" {
 		return fmt.Errorf("workspace title cannot be empty")
 	}
+	if m.prefixedSessionName(title) == m.sessionPrefix+"dashboard" {
+		return fmt.Errorf("workspace title %q is reserved for the dashboard session", title)
+	}
 	if !agent.IsSupported(agentType) {
 		return fmt.Errorf("unsupported agent type %q", agentType)
 	}
