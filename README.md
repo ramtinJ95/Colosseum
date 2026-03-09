@@ -59,7 +59,7 @@ go install github.com/ramtinj/colosseum/cmd/colosseum@latest
 colosseum
 ```
 
-Opens the Bubble Tea TUI with a sidebar listing all workspaces and a preview panel showing the selected workspace's agent output. Status is polled in the background every 1.5 seconds.
+Creates or reuses a dedicated tmux dashboard session, then attaches to it when launched from a normal shell or switches the current tmux client into it when launched from inside tmux. Inside that dashboard, the Bubble Tea TUI shows all workspaces and a preview panel for the selected workspace. Status is polled in the background every 1.5 seconds.
 
 ### Create a workspace or experiment
 
@@ -140,7 +140,7 @@ colosseum list
 colosseum attach my-feature
 ```
 
-Switches your tmux client to the workspace's session. Colosseum also installs a tmux `prefix+e` binding that returns directly to the dashboard session you launched it from.
+From inside tmux, this switches the current client to the workspace session and installs a tmux `prefix+e` binding that returns to the dashboard session. From a normal shell, it attaches directly to the workspace session.
 
 ### Delete a workspace
 

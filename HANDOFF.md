@@ -19,7 +19,7 @@ Colosseum is a Go + tmux + Bubble Tea workspace manager for running AI coding ag
 - A shell-style path-completion flow in the new-workspace dialog
 - Config-driven theme propagation across the sidebar, preview, dialogs, and shared app styling
 - Config-driven sidebar navigation instead of hardcoded `j/k`
-- A deterministic tmux return path from attached workspaces back to the dashboard session that launched Colosseum
+- A deterministic tmux return path from attached workspaces back to Colosseum's dedicated dashboard session
 - A still-unimplemented roadmap for compare/vote UX, diffing, and the later repo-centric UI
 
 ### Repo Metrics
@@ -101,8 +101,8 @@ These changes landed before the 2026-03-04 items below:
 8. The preview pane now refreshes on a timer instead of only on status transitions or cursor movement.
 9. Preview content now wraps to the viewport width instead of overflowing past the pane border.
 10. Attaching to a workspace now installs a deterministic tmux return binding:
-    - `prefix+e` switches back to the dashboard session that launched Colosseum
-    - this is not tied to a hardcoded `colo-ctrl` session name
+    - `prefix+e` switches back to Colosseum's dedicated dashboard session
+    - the root `colosseum` command bootstraps that dashboard session before entering the TUI
 11. Status detection was hardened against current Claude and Codex CLI drift:
     - Codex now recognizes current `Working (... esc to interrupt)` output and current footer lines
     - Claude now recognizes current `✻ Cooked for ...` activity lines and current footer/status-bar lines
@@ -125,7 +125,7 @@ The binary can currently:
 - Fail fast on malformed or unreadable config instead of silently ignoring it
 - Refresh and display live workspace status
 - Attach to an existing workspace tmux session
-- Return from an attached workspace to the dashboard session with `prefix+e`
+- Return from an attached workspace to the dedicated dashboard session with `prefix+e`
 - Delete a workspace and clean up the tmux session
 - Broadcast a prompt from the CLI or TUI to multiple workspaces
 - Preview agent, shell, or logs panes inside the dashboard
@@ -241,10 +241,10 @@ The “legacy definition still registered” detail matters because existing sav
 
 | Command | Status | Notes |
 |---------|--------|-------|
-| `colosseum` | **Done** | Launches the dashboard. |
+| `colosseum` | **Done** | Ensures the dedicated dashboard tmux session exists, then attaches or switches into it before running the TUI. |
 | `colosseum new` | **Done** | Supports `claude`, `codex`, and `opencode`; validates layout and agent support. |
 | `colosseum list` | **Done** | Refreshes live statuses before output. |
-| `colosseum attach` | **Done** | Switches into the workspace session and installs a `prefix+e` return binding back to the dashboard session you launched from. |
+| `colosseum attach` | **Done** | Switches into the workspace session from inside tmux and installs a `prefix+e` return binding back to the dashboard session; outside tmux it attaches directly to the workspace session. |
 | `colosseum broadcast` | **Done** | Sends one prompt to a comma-separated set of workspace names via `--prompt` and `--workspaces`. |
 | `colosseum delete` | **Done** | Works. |
 | `colosseum diff` | **Not Started** | Not present. |
@@ -261,7 +261,7 @@ The “legacy definition still registered” detail matters because existing sav
 | `keys.jump_next` | Jump to next needing attention | **Done** | Default is `J`. |
 | `keys.help` | Help overlay | **Done** | Default is `?`. |
 | `keys.quit` | Quit | **Done** | Default is `q`, with `ctrl+c` retained as a fallback binding. |
-| `prefix+e` | Return from attached workspace to dashboard | **Done** | Installed when Colosseum switches the tmux client into a workspace session; targets the session that launched the dashboard. |
+| `prefix+e` | Return from attached workspace to dashboard | **Done** | Installed when Colosseum switches the tmux client into a workspace session; targets the dedicated dashboard session. |
 | `keys.broadcast` | Broadcast prompt | **Done** | Default is `b`; opens the broadcast dialog and dispatches prompts to selected workspaces. |
 | `keys.diff` | Diff viewer | **Unavailable** | Default is `D`; same behavior. |
 | `keys.rename` | Rename workspace | **Unavailable** | Default is `r`; same behavior. |
