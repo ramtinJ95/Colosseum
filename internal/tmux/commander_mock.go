@@ -6,7 +6,8 @@ import (
 )
 
 type MockCall struct {
-	Args []string
+	Args        []string
+	Interactive bool
 }
 
 type MockResponse struct {
@@ -36,4 +37,16 @@ func (m *MockCommander) Run(_ context.Context, args ...string) (string, error) {
 	resp := m.Responses[m.callIndex]
 	m.callIndex++
 	return resp.Output, resp.Err
+}
+
+func (m *MockCommander) RunInteractive(_ context.Context, args ...string) error {
+	m.Calls = append(m.Calls, MockCall{Args: args, Interactive: true})
+
+	if m.callIndex >= len(m.Responses) {
+		return fmt.Errorf("mock: no response configured for call %d", m.callIndex)
+	}
+
+	resp := m.Responses[m.callIndex]
+	m.callIndex++
+	return resp.Err
 }
