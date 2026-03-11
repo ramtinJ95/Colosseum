@@ -20,6 +20,7 @@ const (
 type dashboardSessionController interface {
 	SessionExists(ctx context.Context, name string) bool
 	CurrentSession(ctx context.Context) (string, error)
+	LastSession(ctx context.Context) (string, error)
 	CreateDetachedSessionWithCommand(ctx context.Context, name string, startDir string, command []string) error
 	SwitchSession(ctx context.Context, name string) error
 	AttachSession(ctx context.Context, name string) error
@@ -124,4 +125,22 @@ func (b dashboardBootstrap) Bootstrap(ctx context.Context) (bool, error) {
 
 func (b dashboardBootstrap) command() []string {
 	return []string{"env", dashboardInternalEnv + "=1", b.executablePath}
+}
+
+func restoreDashboardSession(ctx context.Context, client dashboardSessionController, getenv func(string) string) error {
+	if strings.TrimSpace(getenv("TMUX")) == "" {
+		return nil
+	}
+
+	returnSession, err := client.LastSession(ctx)
+	if err != nil {
+		return fmt.Errorf("detect last tmux session: %w", err)
+	}
+	if returnSession == "" || !client.SessionExists(ctx, returnSession) {
+		return nil
+	}
+	if err := client.SwitchSession(ctx, returnSession); err != nil {
+		return fmt.Errorf("return to tmux session %q: %w", returnSession, err)
+	}
+	return nil
 }

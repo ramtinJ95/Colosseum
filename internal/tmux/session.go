@@ -114,6 +114,14 @@ func (c *Client) CurrentSession(ctx context.Context) (string, error) {
 	return c.currentSession(ctx)
 }
 
+func (c *Client) LastSession(ctx context.Context) (string, error) {
+	output, err := c.Commander.Run(ctx, "display-message", "-p", "#{client_last_session}")
+	if err != nil {
+		return "", fmt.Errorf("display last session: %w", err)
+	}
+	return strings.TrimSpace(output), nil
+}
+
 func (c *Client) currentSession(ctx context.Context) (string, error) {
 	output, err := c.Commander.Run(ctx, "display-message", "-p", "#{session_name}")
 	if err != nil {
