@@ -10,7 +10,9 @@ import (
 type fakeDashboardSessionController struct {
 	sessionExists    bool
 	currentSession   string
+	lastSession      string
 	currentErr       error
+	lastErr          error
 	createErr        error
 	switchErr        error
 	attachErr        error
@@ -38,6 +40,13 @@ func (f *fakeDashboardSessionController) CurrentSession(_ context.Context) (stri
 		return "", f.currentErr
 	}
 	return f.currentSession, nil
+}
+
+func (f *fakeDashboardSessionController) LastSession(_ context.Context) (string, error) {
+	if f.lastErr != nil {
+		return "", f.lastErr
+	}
+	return f.lastSession, nil
 }
 
 func (f *fakeDashboardSessionController) CreateDetachedSessionWithCommand(_ context.Context, name string, startDir string, command []string) error {
@@ -156,6 +165,44 @@ func TestDashboardBootstrapCreatesAndSwitchesInsideTmux(t *testing.T) {
 	if len(controller.attachCalls) != 0 {
 		t.Fatalf("attachCalls = %v, want none", controller.attachCalls)
 	}
+
+	expectedCommand := []string{"env", dashboardInternalEnv + "=1", "/tmp/colosseum/bin"}
+	if !reflect.DeepEqual(controller.createCalls[0].command, expectedCommand) {
+		t.Fatalf("command = %v, want %v", controller.createCalls[0].command, expectedCommand)
+	}
+}
+
+func TestDashboardBootstrapReusesExistingSessionInsideTmux(t *testing.T) {
+	controller := &fakeDashboardSessionController{
+		sessionExists:  true,
+		currentSession: "colo-feature",
+	}
+	bootstrap := dashboardBootstrap{
+		client:         controller,
+		sessionName:    "colo-dashboard",
+		currentDir:     "/tmp/colosseum",
+		executablePath: "/tmp/colosseum/bin",
+		getenv: func(key string) string {
+			if key == "TMUX" {
+				return "/tmp/tmux-1000/default,123,0"
+			}
+			return ""
+		},
+	}
+
+	handled, err := bootstrap.Bootstrap(context.Background())
+	if err != nil {
+		t.Fatalf("Bootstrap: %v", err)
+	}
+	if !handled {
+		t.Fatal("handled = false, want true")
+	}
+	if len(controller.createCalls) != 0 {
+		t.Fatalf("createCalls = %d, want 0", len(controller.createCalls))
+	}
+	if len(controller.switchCalls) != 1 || controller.switchCalls[0] != "colo-dashboard" {
+		t.Fatalf("switchCalls = %v, want [colo-dashboard]", controller.switchCalls)
+	}
 }
 
 func TestDashboardBootstrapRunsInlineInsideDashboardSession(t *testing.T) {
@@ -205,5 +252,59 @@ func TestDashboardBootstrapSurfacesCurrentSessionError(t *testing.T) {
 
 	if _, err := bootstrap.Bootstrap(context.Background()); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestRestoreDashboardSessionSwitchesBackToOrigin(t *testing.T) {
+	controller := &fakeDashboardSessionController{
+		sessionExists: true,
+		lastSession:   "colo-feature",
+	}
+
+	err := restoreDashboardSession(context.Background(), controller, func(key string) string {
+		if key == "TMUX" {
+			return "/tmp/tmux-1000/default,123,0"
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("restoreDashboardSession: %v", err)
+	}
+	if len(controller.switchCalls) != 1 || controller.switchCalls[0] != "colo-feature" {
+		t.Fatalf("switchCalls = %v, want [colo-feature]", controller.switchCalls)
+	}
+}
+
+func TestRestoreDashboardSessionSkipsWhenOriginSessionMissing(t *testing.T) {
+	controller := &fakeDashboardSessionController{lastSession: "colo-feature"}
+
+	err := restoreDashboardSession(context.Background(), controller, func(key string) string {
+		if key == "TMUX" {
+			return "/tmp/tmux-1000/default,123,0"
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("restoreDashboardSession: %v", err)
+	}
+	if len(controller.switchCalls) != 0 {
+		t.Fatalf("switchCalls = %v, want none", controller.switchCalls)
+	}
+}
+
+func TestRestoreDashboardSessionSkipsWithoutLastSession(t *testing.T) {
+	controller := &fakeDashboardSessionController{}
+
+	err := restoreDashboardSession(context.Background(), controller, func(key string) string {
+		if key == "TMUX" {
+			return "/tmp/tmux-1000/default,123,0"
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("restoreDashboardSession: %v", err)
+	}
+	if len(controller.switchCalls) != 0 {
+		t.Fatalf("switchCalls = %v, want none", controller.switchCalls)
 	}
 }

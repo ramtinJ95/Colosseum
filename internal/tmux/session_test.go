@@ -189,6 +189,25 @@ func TestCurrentSession(t *testing.T) {
 	})
 }
 
+func TestLastSession(t *testing.T) {
+	mock := NewMockCommander(MockResponse{Output: "colo-feature\n", Err: nil})
+	client := NewClient(mock)
+
+	session, err := client.LastSession(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if session != "colo-feature" {
+		t.Fatalf("session = %q, want %q", session, "colo-feature")
+	}
+
+	assertArgs(t, mock.Calls[0].Args, []string{
+		"display-message",
+		"-p",
+		"#{client_last_session}",
+	})
+}
+
 func assertArgs(t *testing.T, got, expected []string) {
 	t.Helper()
 	if len(got) != len(expected) {
