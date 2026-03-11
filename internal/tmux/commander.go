@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -14,6 +16,7 @@ const DefaultTimeout = 5 * time.Second
 
 type Commander interface {
 	Run(ctx context.Context, args ...string) (string, error)
+	RunInteractive(ctx context.Context, args ...string) error
 }
 
 type TmuxError struct {
@@ -60,6 +63,24 @@ func (c *ExecCommander) Run(ctx context.Context, args ...string) (string, error)
 	}
 
 	return strings.TrimSpace(stdout.String()), nil
+}
+
+func (c *ExecCommander) RunInteractive(ctx context.Context, args ...string) error {
+	cmd := exec.CommandContext(ctx, c.TmuxPath, args...)
+	var stderr bytes.Buffer
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
+
+	if err := cmd.Run(); err != nil {
+		stderrStr := strings.TrimSpace(stderr.String())
+		if stderrStr != "" {
+			return &TmuxError{Args: args, Stderr: stderrStr}
+		}
+		return fmt.Errorf("tmux %s: %w", strings.Join(args, " "), err)
+	}
+
+	return nil
 }
 
 func IsSessionNotFound(err error) bool {

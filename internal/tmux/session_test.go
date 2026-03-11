@@ -165,6 +165,9 @@ func TestAttachSession(t *testing.T) {
 		"attach-session",
 		"-t", "colo-myproject",
 	})
+	if !mock.Calls[0].Interactive {
+		t.Fatal("attach-session should run interactively")
+	}
 }
 
 func TestCurrentSession(t *testing.T) {

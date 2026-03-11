@@ -104,8 +104,7 @@ func (c *Client) SwitchSession(ctx context.Context, name string) error {
 }
 
 func (c *Client) AttachSession(ctx context.Context, name string) error {
-	_, err := c.Commander.Run(ctx, "attach-session", "-t", name)
-	if err != nil {
+	if err := c.Commander.RunInteractive(ctx, "attach-session", "-t", name); err != nil {
 		return fmt.Errorf("attach session %q: %w", name, err)
 	}
 	return nil
