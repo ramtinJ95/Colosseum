@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,7 +28,7 @@ func runDashboard(_ *cobra.Command, _ []string) error {
 	return runDashboardProgram()
 }
 
-func runDashboardProgram() error {
+func runDashboardProgram() (runErr error) {
 	store := newStore()
 	client := newTmuxClient()
 	mgr := newManager(store, client)
@@ -37,12 +38,17 @@ func runDashboardProgram() error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	defer func() {
+		if err := restoreDashboardSession(context.Background(), client, os.Getenv); err != nil && runErr == nil {
+			runErr = err
+		}
+	}()
 
 	go poller.Run(ctx)
 
 	app := tui.NewApp(store, mgr, poller, detector, cfg)
 	p := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
-	_, err := p.Run()
-	return err
+	_, runErr = p.Run()
+	return runErr
 }
