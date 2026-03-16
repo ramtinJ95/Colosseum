@@ -13,6 +13,7 @@ const (
 	Gemini   AgentType = "gemini"
 	OpenCode AgentType = "opencode"
 	Aider    AgentType = "aider"
+	PiAgent  AgentType = "pi-agent"
 )
 
 type Status int

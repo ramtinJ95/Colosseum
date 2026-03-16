@@ -35,8 +35,8 @@ func TestRegisterAndGet(t *testing.T) {
 
 func TestAvailable(t *testing.T) {
 	types := Available()
-	if len(types) < 5 {
-		t.Fatalf("expected at least 5 agent types, got %d", len(types))
+	if len(types) < 6 {
+		t.Fatalf("expected at least 6 agent types, got %d", len(types))
 	}
 
 	for i := 1; i < len(types); i++ {
@@ -47,7 +47,7 @@ func TestAvailable(t *testing.T) {
 }
 
 func TestBuiltinAgentsRegistered(t *testing.T) {
-	builtins := []AgentType{Claude, Codex, Gemini, OpenCode, Aider}
+	builtins := []AgentType{Claude, Codex, Gemini, OpenCode, Aider, PiAgent}
 
 	for _, agentType := range builtins {
 		def, ok := Get(agentType)
@@ -68,8 +68,8 @@ func TestBuiltinAgentsRegistered(t *testing.T) {
 }
 
 func TestSupported(t *testing.T) {
-	if got := Supported(); len(got) != 3 {
-		t.Fatalf("Supported() len = %d, want 3", len(got))
+	if got := Supported(); len(got) != 4 {
+		t.Fatalf("Supported() len = %d, want 4", len(got))
 	}
 
 	if !IsSupported(Claude) {
@@ -81,7 +81,23 @@ func TestSupported(t *testing.T) {
 	if !IsSupported(OpenCode) {
 		t.Fatal("expected opencode to be supported")
 	}
+	if !IsSupported(PiAgent) {
+		t.Fatal("expected pi-agent to be supported")
+	}
 	if IsSupported(Gemini) {
 		t.Fatal("expected gemini to be unsupported")
+	}
+}
+
+func TestPiAgentLaunchDefinition(t *testing.T) {
+	def, ok := Get(PiAgent)
+	if !ok {
+		t.Fatal("expected pi-agent to be registered")
+	}
+	if def.Binary != "pi" {
+		t.Fatalf("binary = %q, want %q", def.Binary, "pi")
+	}
+	if len(def.LaunchFlags) != 0 {
+		t.Fatalf("launch flags = %v, want none", def.LaunchFlags)
 	}
 }
