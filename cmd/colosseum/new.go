@@ -28,7 +28,7 @@ func newNewCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&flagPath, "path", "p", ".", "project directory path")
-	cmd.Flags().StringVarP(&flagAgent, "agent", "a", cfg.Defaults.Agent, "agent type (claude, codex, opencode)")
+	cmd.Flags().StringVarP(&flagAgent, "agent", "a", cfg.Defaults.Agent, "agent type (claude, codex, opencode, pi-agent)")
 	cmd.Flags().StringVarP(&flagBranch, "branch", "b", "", "git branch name")
 	cmd.Flags().StringVar(&flagBaseBranch, "base", "", "base branch for managed worktrees")
 	cmd.Flags().StringVarP(&flagLayout, "layout", "l", cfg.Defaults.Layout, "pane layout (agent, agent-shell, agent-shell-logs)")

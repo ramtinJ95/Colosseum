@@ -21,7 +21,7 @@ A tmux-native TUI for managing parallel AI coding agent workspaces and `worktrun
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-Colosseum currently supports Claude Code, Codex, and OpenCode for new workspace creation. Each agent gets its own tmux session with a configurable pane layout, and a central TUI dashboard provides real-time status detection, workspace switching, managed worktree creation, and experiment-style fan-out runs.
+Colosseum currently supports Claude Code, Codex, OpenCode, and Pi for new workspace creation. Each agent gets its own tmux session with a configurable pane layout, and a central TUI dashboard provides real-time status detection, workspace switching, managed worktree creation, and experiment-style fan-out runs.
 
 ## Prerequisites
 
@@ -70,7 +70,7 @@ colosseum new my-feature --path ~/projects/myapp --agent claude --branch feat/au
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
 | `--path` | `-p` | `.` | Checkout path for `existing-checkout`, repository root for managed worktree modes |
-| `--agent` | `-a` | `claude` | Agent type: `claude`, `codex`, `opencode` |
+| `--agent` | `-a` | `claude` | Agent type: `claude`, `codex`, `opencode`, `pi-agent` |
 | `--branch` | `-b` | | Branch to create for `new-worktree` mode |
 | `--base` | | | Base branch for managed worktrees and experiments |
 | `--layout` | `-l` | `agent-shell` | Pane layout: `agent`, `agent-shell`, `agent-shell-logs` |
@@ -181,11 +181,12 @@ Detection priority: Working > Waiting > Error > Idle.
 
 ## Supported Agents
 
-| Agent | Binary | Auto-approve flag |
-|-------|--------|-------------------|
+| Agent | Launch command | Auto-approve flag |
+|-------|----------------|-------------------|
 | Claude Code | `claude` | `--dangerously-skip-permissions` |
 | Codex CLI | `codex` | `--approval-mode full-auto` |
 | OpenCode | `opencode` | None configured |
+| Pi | `pi` | None configured |
 
 ## Pane Layouts
 
