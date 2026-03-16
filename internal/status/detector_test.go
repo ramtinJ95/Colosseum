@@ -37,6 +37,8 @@ func TestDetectFromContent_Fixtures(t *testing.T) {
 		{agent.Aider, "aider/waiting", agent.StatusWaiting},
 		{agent.Aider, "aider/idle", agent.StatusIdle},
 		{agent.Aider, "aider/error", agent.StatusError},
+		{agent.PiAgent, "pi-agent/working", agent.StatusWorking},
+		{agent.PiAgent, "pi-agent/idle", agent.StatusIdle},
 	}
 
 	for _, tt := range tests {
