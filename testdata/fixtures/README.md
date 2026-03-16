@@ -39,5 +39,6 @@ go test ./internal/status -run TestDetectFromContent -count=1
 - `codex`: at least one current `working`, `waiting`, and `idle` sample
 - `opencode`: keep at least one `working`, `waiting`, `idle`, and `error` sample current
 - `aider`: keep at least one `working`, `waiting`, `idle`, and `error` sample current
+- `pi-agent`: keep at least one current `working` and `idle` sample
 
 Any future agent surface should get dedicated fixture coverage before its status rules are considered stable.

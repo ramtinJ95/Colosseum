@@ -1,0 +1,50 @@
+pi --no-session
+
+Colosseum add-pi-agent-support*​
+❯ pi --no-session
+
+ pi v0.58.3
+ escape to interrupt
+ ctrl+c to clear
+ ctrl+c twice to exit
+ ctrl+d to exit (empty)
+ ctrl+z to suspend
+ ctrl+k to delete to end
+ shift+tab to cycle thinking level
+ ctrl+p/shift+ctrl+p to cycle models
+ ctrl+l to select model
+ ctrl+o to expand tools
+ ctrl+t to expand thinking
+ ctrl+g for external editor
+ / for commands
+ ! to run bash
+ !! to run bash (no context)
+ alt+enter to queue follow-up
+ alt+up to edit all queued messages
+ ctrl+v to paste image
+ drop files to attach
+
+
+[Context]
+  ~/personal-workspace/Colosseum/CLAUDE.md
+
+[Extensions]
+  user
+    ~/.pi/agent/extensions/context-usage-footer.ts
+    ~/.pi/agent/extensions/context.ts
+    ~/.pi/agent/extensions/opencode-web/index.ts
+    ~/.pi/agent/extensions/session-breakdown.ts
+    ~/.pi/agent/extensions/silly-messages.ts
+    ~/.pi/agent/extensions/subagent/index.ts
+    ~/.pi/agent/extensions/todo.ts
+    ~/.pi/agent/extensions/vim-mode.ts
+
+
+ Warning: tmux extended-keys is off. Modified Enter keys may not work. Add `set
+ -g extended-keys on` to ~/.tmux.conf and restart tmux.
+
+────────────────────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────── -- INSERT --
+~/personal-workspace/Colosseum (add-pi-agent-support)
+$0.000 (sub) 0/400K 0%                                            gpt-5.4 • high
