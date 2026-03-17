@@ -86,7 +86,8 @@ func (c *ExecCommander) RunInteractive(ctx context.Context, args ...string) erro
 func IsSessionNotFound(err error) bool {
 	var tmuxErr *TmuxError
 	if errors.As(err, &tmuxErr) {
-		return strings.Contains(tmuxErr.Stderr, "session not found")
+		stderr := strings.ToLower(tmuxErr.Stderr)
+		return strings.Contains(stderr, "session not found") || strings.Contains(stderr, "can't find session")
 	}
 	return false
 }
