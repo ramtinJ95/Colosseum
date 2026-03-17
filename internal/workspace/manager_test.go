@@ -362,19 +362,39 @@ func TestManagerCreateReturnsLaunchError(t *testing.T) {
 }
 
 func TestManagerDeleteIgnoresSessionNotFound(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(filepath.Join(dir, "workspaces.json"))
-	mock := &mockSessionCreator{}
-	mgr, _, _ := newTestManager(store, mock)
-
-	ws, err := mgr.Create(context.Background(), "already-gone", agent.Codex, "/tmp/project", "main", LayoutAgent)
-	if err != nil {
-		t.Fatalf("Create: %v", err)
+	tests := []struct {
+		name   string
+		stderr string
+	}{
+		{name: "legacy message", stderr: "session not found"},
+		{name: "cant find session", stderr: "can't find session: colo-already-gone"},
 	}
 
-	mock.killErr = &tmux.TmuxError{Args: []string{"kill-session"}, Stderr: "session not found"}
-	if err := mgr.Delete(context.Background(), ws.ID); err != nil {
-		t.Fatalf("Delete: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			store := NewStore(filepath.Join(dir, "workspaces.json"))
+			mock := &mockSessionCreator{}
+			mgr, _, _ := newTestManager(store, mock)
+
+			ws, err := mgr.Create(context.Background(), "already-gone", agent.Codex, "/tmp/project", "main", LayoutAgent)
+			if err != nil {
+				t.Fatalf("Create: %v", err)
+			}
+
+			mock.killErr = &tmux.TmuxError{Args: []string{"kill-session"}, Stderr: tt.stderr}
+			if err := mgr.Delete(context.Background(), ws.ID); err != nil {
+				t.Fatalf("Delete: %v", err)
+			}
+
+			remaining, err := store.List()
+			if err != nil {
+				t.Fatalf("List: %v", err)
+			}
+			if len(remaining) != 0 {
+				t.Fatalf("expected workspace to be removed, got %d remaining", len(remaining))
+			}
+		})
 	}
 }
 
