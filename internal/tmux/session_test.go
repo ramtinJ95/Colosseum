@@ -2,6 +2,7 @@ package tmux
 
 import (
 	"context"
+	"fmt"
 	"testing"
 )
 
@@ -41,6 +42,48 @@ func TestKillSession(t *testing.T) {
 
 	expected := []string{"kill-session", "-t", "colo-myproject"}
 	assertArgs(t, mock.Calls[0].Args, expected)
+}
+
+func TestIsSessionNotFound(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "legacy message",
+			err:  &TmuxError{Args: []string{"kill-session"}, Stderr: "session not found"},
+			want: true,
+		},
+		{
+			name: "cant find session message",
+			err:  &TmuxError{Args: []string{"kill-session"}, Stderr: "can't find session: colo-myproject"},
+			want: true,
+		},
+		{
+			name: "wrapped tmux error",
+			err:  fmt.Errorf("wrapped: %w", &TmuxError{Args: []string{"kill-session"}, Stderr: "can't find session: colo-myproject"}),
+			want: true,
+		},
+		{
+			name: "other tmux error",
+			err:  &TmuxError{Args: []string{"kill-session"}, Stderr: "permission denied"},
+			want: false,
+		},
+		{
+			name: "plain error",
+			err:  context.DeadlineExceeded,
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsSessionNotFound(tt.err); got != tt.want {
+				t.Fatalf("IsSessionNotFound() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
 
 func TestCreateDetachedSessionWithCommand(t *testing.T) {
