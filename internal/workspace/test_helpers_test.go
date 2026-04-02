@@ -29,6 +29,7 @@ type mockSessionCreator struct {
 	splitErrAt    int
 	sendKeysErr   error
 	sendKeysErrs  map[string]error
+	renameErrs    []error
 	renameErr     error
 }
 
@@ -130,6 +131,9 @@ func (m *mockSessionCreator) SendKeys(_ context.Context, target string, keys str
 
 func (m *mockSessionCreator) RenameSession(_ context.Context, oldName, newName string) error {
 	m.renameCalls = append(m.renameCalls, mockRenameCall{OldName: oldName, NewName: newName})
+	if callIndex := len(m.renameCalls) - 1; callIndex < len(m.renameErrs) {
+		return m.renameErrs[callIndex]
+	}
 	return m.renameErr
 }
 

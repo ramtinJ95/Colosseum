@@ -433,7 +433,7 @@ func (m *Manager) Rename(ctx context.Context, id, newTitle string) error {
 		return fmt.Errorf("renaming tmux session: %w", err)
 	}
 
-	return m.store.UpdateState(func(state *State) error {
+	if err := m.store.UpdateState(func(state *State) error {
 		for i := range state.Workspaces {
 			if state.Workspaces[i].ID == id {
 				state.Workspaces[i].Title = newTitle
@@ -442,7 +442,15 @@ func (m *Manager) Rename(ctx context.Context, id, newTitle string) error {
 			}
 		}
 		return fmt.Errorf("workspace %q not found in state", id)
-	})
+	}); err != nil {
+		rollbackErr := m.sessions.RenameSession(context.Background(), newSessionName, oldSessionName)
+		if rollbackErr != nil {
+			return fmt.Errorf("persisting renamed workspace state: %w; rolling back tmux session rename: %v", err, rollbackErr)
+		}
+		return fmt.Errorf("persisting renamed workspace state: %w", err)
+	}
+
+	return nil
 }
 
 func (m *Manager) Delete(ctx context.Context, id string) error {
