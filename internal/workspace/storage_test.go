@@ -5,29 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
-
-	"github.com/ramtinj/colosseum/internal/agent"
 )
 
-func newTestWorkspace(id, title string) Workspace {
-	return Workspace{
-		ID:          id,
-		Title:       title,
-		AgentType:   agent.Claude,
-		ProjectPath: "/tmp/test",
-		Branch:      "main",
-		Layout:      LayoutAgent,
-		Status:      agent.StatusIdle,
-		SessionName: "colo-" + title,
-		PaneTargets: map[string]string{"agent": "colo-" + title + ":0.0"},
-		CreatedAt:   time.Now(),
-	}
-}
-
 func TestStoreAddAndLoad(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	store := newTestStore(t)
 
 	ws := newTestWorkspace("id-1", "test-ws")
 	if err := store.Add(ws); err != nil {
@@ -50,8 +31,7 @@ func TestStoreAddAndLoad(t *testing.T) {
 }
 
 func TestStoreRemove(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	store := newTestStore(t)
 
 	ws1 := newTestWorkspace("id-1", "ws-1")
 	ws2 := newTestWorkspace("id-2", "ws-2")
@@ -79,8 +59,7 @@ func TestStoreRemove(t *testing.T) {
 }
 
 func TestStoreUpdate(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(filepath.Join(dir, "workspaces.json"))
+	store := newTestStore(t)
 
 	ws := newTestWorkspace("id-1", "original-title")
 	if err := store.Add(ws); err != nil {
@@ -105,9 +84,7 @@ func TestStoreUpdate(t *testing.T) {
 }
 
 func TestStoreAtomicWrite(t *testing.T) {
-	dir := t.TempDir()
-	storePath := filepath.Join(dir, "workspaces.json")
-	store := NewStore(storePath)
+	store, storePath := newTestStoreWithPath(t)
 
 	ws := newTestWorkspace("id-1", "test-ws")
 	if err := store.Add(ws); err != nil {
@@ -118,15 +95,13 @@ func TestStoreAtomicWrite(t *testing.T) {
 	if _, err := os.Stat(tmpPath); !os.IsNotExist(err) {
 		t.Error("expected .tmp file to not persist after write")
 	}
-
 	if _, err := os.Stat(storePath); os.IsNotExist(err) {
 		t.Error("expected final file to exist")
 	}
 }
 
 func TestStoreEmptyFile(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(filepath.Join(dir, "nonexistent.json"))
+	store := NewStore(filepath.Join(t.TempDir(), "nonexistent.json"))
 
 	loaded, err := store.Load()
 	if err != nil {
@@ -138,8 +113,7 @@ func TestStoreEmptyFile(t *testing.T) {
 }
 
 func TestStoreLoadsLegacyWorkspaceArray(t *testing.T) {
-	dir := t.TempDir()
-	storePath := filepath.Join(dir, "workspaces.json")
+	storePath := filepath.Join(t.TempDir(), "workspaces.json")
 
 	legacy := []Workspace{newTestWorkspace("id-1", "legacy")}
 	data, err := json.Marshal(legacy)
@@ -155,17 +129,9 @@ func TestStoreLoadsLegacyWorkspaceArray(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadState: %v", err)
 	}
-	if len(state.Workspaces) != 1 {
-		t.Fatalf("workspaces = %d, want 1", len(state.Workspaces))
-	}
+	assertStateCounts(t, state, 1, 1, 1, 0)
 	if got := state.Workspaces[0].Title; got != "legacy" {
 		t.Fatalf("title = %q, want legacy", got)
-	}
-	if len(state.Repositories) != 1 {
-		t.Fatalf("repositories = %d, want 1", len(state.Repositories))
-	}
-	if len(state.Checkouts) != 1 {
-		t.Fatalf("checkouts = %d, want 1", len(state.Checkouts))
 	}
 	if state.Workspaces[0].RepositoryID == "" {
 		t.Fatal("expected migrated workspace repository id")
