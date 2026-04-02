@@ -227,6 +227,34 @@ func TestConfiguredHelpOverlayUsesCurrentBindings(t *testing.T) {
 	}
 }
 
+func TestRenameKeyOpensRenameDialog(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, config.Default())
+	app.sidebar.SetWorkspaces([]workspace.Workspace{
+		{ID: "ws-1", Title: "my-workspace", AgentType: agent.Claude},
+	})
+
+	model, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	updated := model.(App)
+
+	if updated.state != viewRename {
+		t.Fatalf("state = %v, want viewRename", updated.state)
+	}
+	if cmd == nil {
+		t.Fatal("expected Init command from rename dialog")
+	}
+}
+
+func TestRenameKeyDoesNothingWithNoWorkspace(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, config.Default())
+
+	model, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	updated := model.(App)
+
+	if updated.state != viewNormal {
+		t.Fatalf("state = %v, want viewNormal when no workspace selected", updated.state)
+	}
+}
+
 func TestAttachStatusBarUsesConfiguredReturnKey(t *testing.T) {
 	cfg := config.Default()
 	cfg.Tmux.ReturnKey = "g"

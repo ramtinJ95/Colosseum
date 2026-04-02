@@ -27,6 +27,7 @@ const (
 	viewDeleteConfirm
 	viewBroadcast
 	viewHelp
+	viewRename
 )
 
 type StatusUpdateMsg status.Update
@@ -39,6 +40,7 @@ type experimentCreatedMsg struct {
 }
 
 type workspaceDeletedMsg struct{ id string }
+type workspaceRenamedMsg struct{ newTitle string }
 type broadcastCompletedMsg struct{ result workspace.BroadcastResult }
 type previewRefreshMsg time.Time
 
@@ -50,6 +52,7 @@ type App struct {
 	preview                preview.Model
 	newDialog              dialog.NewWorkspaceModel
 	delDialog              dialog.DeleteModel
+	renameDialog           dialog.RenameModel
 	broadcastDialog        dialog.BroadcastModel
 	helpDialog             dialog.HelpModel
 	keys                   KeyMap
@@ -164,6 +167,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, a.loadWorkspaces)
 		return a, tea.Batch(cmds...)
 
+	case workspaceRenamedMsg:
+		a.state = viewNormal
+		a.statusBar = fmt.Sprintf("Workspace renamed to %q", msg.newTitle)
+		cmds = append(cmds, a.loadWorkspaces)
+		return a, tea.Batch(cmds...)
+
 	case broadcastCompletedMsg:
 		a.statusBar = formatBroadcastStatus(msg.result)
 		return a, nil
@@ -174,6 +183,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.updateNewDialog(msg)
 	case viewDeleteConfirm:
 		return a.updateDeleteDialog(msg)
+	case viewRename:
+		return a.updateRenameDialog(msg)
 	case viewBroadcast:
 		return a.updateBroadcastDialog(msg)
 	case viewHelp:
@@ -255,7 +266,13 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 
 		case key.Matches(msg, a.keys.Rename):
-			a.statusBar = unavailableFeatureStatus("Rename workspace")
+			if ws := a.sidebar.SelectedWorkspace(); ws != nil {
+				a.state = viewRename
+				a.renameDialog = dialog.NewRename(ws.ID, ws.Title).
+					WithTheme(a.theme).
+					WithKeyMap(dialog.RenameKeyMapFromConfig(a.keyConfig))
+				return a, a.renameDialog.Init()
+			}
 			return a, nil
 
 		case key.Matches(msg, a.keys.Filter):
@@ -348,6 +365,24 @@ func (a App) updateDeleteDialog(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
+func (a App) updateRenameDialog(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg.(type) {
+	case dialog.RenameCancelMsg:
+		a.state = viewNormal
+		a.statusBar = ""
+		return a, nil
+	case dialog.RenameConfirmMsg:
+		rm := msg.(dialog.RenameConfirmMsg)
+		a.state = viewNormal
+		a.statusBar = "Renaming workspace..."
+		return a, a.renameWorkspace(rm.WorkspaceID, rm.NewTitle)
+	}
+
+	var cmd tea.Cmd
+	a.renameDialog, cmd = a.renameDialog.Update(msg)
+	return a, cmd
+}
+
 func (a App) updateBroadcastDialog(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case dialog.BroadcastCancelMsg:
@@ -399,6 +434,9 @@ func (a App) View() string {
 		view = a.placeOverlay(view, overlay)
 	case viewDeleteConfirm:
 		overlay := a.delDialog.View()
+		view = a.placeOverlay(view, overlay)
+	case viewRename:
+		overlay := a.renameDialog.View()
 		view = a.placeOverlay(view, overlay)
 	case viewBroadcast:
 		overlay := a.broadcastDialog.View()
@@ -593,6 +631,15 @@ func (a App) deleteWorkspace(id string) tea.Cmd {
 			return errMsg{err: fmt.Errorf("delete workspace: %w", err)}
 		}
 		return workspaceDeletedMsg{id: id}
+	}
+}
+
+func (a App) renameWorkspace(id, newTitle string) tea.Cmd {
+	return func() tea.Msg {
+		if err := a.manager.Rename(context.Background(), id, newTitle); err != nil {
+			return errMsg{err: fmt.Errorf("rename workspace: %w", err)}
+		}
+		return workspaceRenamedMsg{newTitle: newTitle}
 	}
 }
 

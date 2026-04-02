@@ -34,6 +34,7 @@ func availableHelpItems(keys KeyMap, returnKey string) []dialog.HelpItem {
 		{Key: dialog.BindingLabel(keys.New), Desc: "New workspace"},
 		{Key: dialog.BindingLabel(keys.Delete), Desc: "Delete workspace"},
 		{Key: dialog.BindingLabel(keys.Broadcast), Desc: "Broadcast prompt"},
+		{Key: dialog.BindingLabel(keys.Rename), Desc: "Rename workspace"},
 		{Key: dialog.BindingLabel(keys.JumpNext), Desc: "Jump to next needing attention"},
 		{Key: dialog.BindingLabel(keys.Help), Desc: "Toggle this help"},
 		{Key: dialog.BindingLabel(keys.Quit), Desc: "Quit"},
@@ -45,7 +46,6 @@ func availableHelpItems(keys KeyMap, returnKey string) []dialog.HelpItem {
 func unavailableHelpItems(keys KeyMap) []dialog.HelpItem {
 	return []dialog.HelpItem{
 		{Key: dialog.BindingLabel(keys.Diff), Desc: "Diff viewer (unavailable)"},
-		{Key: dialog.BindingLabel(keys.Rename), Desc: "Rename workspace (unavailable)"},
 		{Key: dialog.BindingLabel(keys.Filter), Desc: "Filter workspaces (unavailable)"},
 		{Key: dialog.BindingLabel(keys.MarkRead), Desc: "Mark read (unavailable)"},
 		{Key: dialog.BindingLabel(keys.Restart), Desc: "Restart agent (unavailable)"},
