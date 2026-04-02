@@ -78,7 +78,7 @@ Small features that enhance the current workspace-first UI.
 
 ### Rename Workspace
 
-Status: keybinding `r` is wired but shows "unavailable". No implementation.
+Status: **implemented**. Keybinding `r` opens rename dialog overlay.
 
 - Rename workspace title
 - Update tmux session name to match
