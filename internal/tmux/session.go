@@ -54,6 +54,14 @@ func (c *Client) SessionExists(ctx context.Context, name string) bool {
 	return err == nil
 }
 
+func (c *Client) RenameSession(ctx context.Context, oldName, newName string) error {
+	_, err := c.Commander.Run(ctx, "rename-session", "-t", oldName, newName)
+	if err != nil {
+		return fmt.Errorf("rename session %q to %q: %w", oldName, newName, err)
+	}
+	return nil
+}
+
 func (c *Client) ListSessions(ctx context.Context) ([]string, error) {
 	output, err := c.Commander.Run(ctx, "list-sessions", "-F", FormatSessionName)
 	if err != nil {

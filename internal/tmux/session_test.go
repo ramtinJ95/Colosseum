@@ -251,6 +251,36 @@ func TestLastSession(t *testing.T) {
 	})
 }
 
+func TestRenameSession(t *testing.T) {
+	mock := NewMockCommander(MockResponse{Output: "", Err: nil})
+	client := NewClient(mock)
+
+	err := client.RenameSession(context.Background(), "colo-old", "colo-new")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(mock.Calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+	}
+
+	expected := []string{"rename-session", "-t", "colo-old", "colo-new"}
+	assertArgs(t, mock.Calls[0].Args, expected)
+}
+
+func TestRenameSessionError(t *testing.T) {
+	mock := NewMockCommander(MockResponse{
+		Output: "",
+		Err:    &TmuxError{Args: []string{"rename-session"}, Stderr: "session not found"},
+	})
+	client := NewClient(mock)
+
+	err := client.RenameSession(context.Background(), "colo-ghost", "colo-new")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func assertArgs(t *testing.T, got, expected []string) {
 	t.Helper()
 	if len(got) != len(expected) {
