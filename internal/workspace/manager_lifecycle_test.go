@@ -2,6 +2,8 @@ package workspace
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/ramtinj/colosseum/internal/agent"
@@ -240,6 +242,48 @@ func TestManagerRename(t *testing.T) {
 	}
 	if updated.SessionName != "colo-renamed" {
 		t.Errorf("session name = %q, want %q", updated.SessionName, "colo-renamed")
+	}
+}
+
+func TestManagerRenameRollsBackSessionWhenStatePersistFails(t *testing.T) {
+	store, path := newTestStoreWithPath(t)
+	h := newManagerHarnessWithStore(t, store)
+	ws := h.mustCreate(t, "original", agent.Claude, "/tmp/project", "main", LayoutAgent)
+
+	stateDir := filepath.Dir(path)
+	if err := os.Chmod(stateDir, 0o555); err != nil {
+		t.Fatalf("Chmod(%q): %v", stateDir, err)
+	}
+	defer func() {
+		_ = os.Chmod(stateDir, 0o755)
+	}()
+
+	if err := h.mgr.Rename(h.ctx, ws.ID, "renamed"); err == nil {
+		t.Fatal("expected rename to fail when workspace state cannot be persisted")
+	}
+
+	if len(h.sessions.renameCalls) != 2 {
+		t.Fatalf("rename calls = %d, want 2", len(h.sessions.renameCalls))
+	}
+	if h.sessions.renameCalls[0].OldName != "colo-original" || h.sessions.renameCalls[0].NewName != "colo-renamed" {
+		t.Fatalf("initial rename = %+v, want old=%q new=%q", h.sessions.renameCalls[0], "colo-original", "colo-renamed")
+	}
+	if h.sessions.renameCalls[1].OldName != "colo-renamed" || h.sessions.renameCalls[1].NewName != "colo-original" {
+		t.Fatalf("rollback rename = %+v, want old=%q new=%q", h.sessions.renameCalls[1], "colo-renamed", "colo-original")
+	}
+
+	stored, found, err := h.store.Get(ws.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if !found {
+		t.Fatal("workspace not found after failed rename")
+	}
+	if stored.Title != "original" {
+		t.Errorf("title = %q, want %q", stored.Title, "original")
+	}
+	if stored.SessionName != "colo-original" {
+		t.Errorf("session name = %q, want %q", stored.SessionName, "colo-original")
 	}
 }
 
