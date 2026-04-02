@@ -20,6 +20,7 @@ type SessionCreator interface {
 	SplitWindow(ctx context.Context, session string, horizontal bool, startDir string) (string, error)
 	SwitchClient(ctx context.Context, name string) error
 	SendKeys(ctx context.Context, target string, keys string, opts tmux.SendOptions) error
+	RenameSession(ctx context.Context, oldName, newName string) error
 }
 
 type CheckoutLifecycle interface {
@@ -397,6 +398,51 @@ func (m *Manager) CreateExperiment(ctx context.Context, req ExperimentRequest) (
 	}
 
 	return result, nil
+}
+
+func (m *Manager) Rename(ctx context.Context, id, newTitle string) error {
+	newTitle = strings.TrimSpace(newTitle)
+	if newTitle == "" {
+		return fmt.Errorf("workspace title cannot be empty")
+	}
+	newSessionName := m.prefixedSessionName(newTitle)
+	if newSessionName == m.sessionPrefix+"dashboard" {
+		return fmt.Errorf("workspace title %q is reserved for the dashboard session", newTitle)
+	}
+
+	ws, found, err := m.store.Get(id)
+	if err != nil {
+		return fmt.Errorf("getting workspace %q: %w", id, err)
+	}
+	if !found {
+		return fmt.Errorf("workspace %q not found", id)
+	}
+
+	workspaces, err := m.store.List()
+	if err != nil {
+		return fmt.Errorf("listing workspaces: %w", err)
+	}
+	for _, existing := range workspaces {
+		if existing.ID != id && existing.Title == newTitle {
+			return fmt.Errorf("workspace %q already exists", newTitle)
+		}
+	}
+
+	oldSessionName := m.workspaceSessionName(ws)
+	if err := m.sessions.RenameSession(ctx, oldSessionName, newSessionName); err != nil {
+		return fmt.Errorf("renaming tmux session: %w", err)
+	}
+
+	return m.store.UpdateState(func(state *State) error {
+		for i := range state.Workspaces {
+			if state.Workspaces[i].ID == id {
+				state.Workspaces[i].Title = newTitle
+				state.Workspaces[i].SessionName = newSessionName
+				return nil
+			}
+		}
+		return fmt.Errorf("workspace %q not found in state", id)
+	})
 }
 
 func (m *Manager) Delete(ctx context.Context, id string) error {
