@@ -190,23 +190,9 @@ Recommended order:
 
 ---
 
-## Agent Expansion
+## Agent Scope
 
-### Gemini CLI Creation Support
-
-Status: Gemini is registered for detection but not in `supportedAgents`. Creation is blocked by `IsSupported()` check.
-
-- Add Gemini to `supportedAgents` in `registry.go`
-- Verify launch binary and flags
-- Test end-to-end creation flow
-
-### Aider Creation Support
-
-Status: same as Gemini — registered for detection, not in `supportedAgents`.
-
-- Add Aider to `supportedAgents` in `registry.go`
-- Verify launch binary and flags
-- Test end-to-end creation flow
+Near-term creation and integration work is intentionally limited to the supported set: Claude Code, Codex, OpenCode, and Pi. Gemini and Aider may remain as passive detection fixtures, but they are not roadmap targets for workspace creation or semantic integrations right now.
 
 ### YOLO Mode
 
@@ -275,8 +261,7 @@ This is a suggested sequencing, not a strict dependency chain:
 3. **Compare view + vote/evaluation** — completes the experiment lifecycle
 4. **Merge flow** — wiring the existing `Client.Merge()` through UI and CLI
 5. **Rename + filter/search** — quality-of-life for growing workspace lists
-6. **Gemini + Aider creation** — expanding agent coverage
-7. **YOLO mode** — low-effort since `YoloFlags` already exist
-8. **Repo-centric UI** — largest scope; should wait until compare/vote is proven
-9. **Auto-create worktrees on broadcast** — convenience shortcut
-10. **Custom instruction injection + Claude Code hooks** — agent-specific integrations
+6. **YOLO mode** — low-effort since `YoloFlags` already exist
+7. **Repo-centric UI** — largest scope; should wait until compare/vote is proven
+8. **Auto-create worktrees on broadcast** — convenience shortcut
+9. **Custom instruction injection + Claude Code hooks** — agent-specific integrations
