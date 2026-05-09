@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -53,15 +54,19 @@ func (f *fakePaneClient) ListPanes(_ context.Context, _ string) ([]tmux.PaneInfo
 
 type fakeStatusDetector struct {
 	statuses []agent.Status
+	err      error
 	calls    int
 }
 
 func (f *fakeStatusDetector) Detect(_ context.Context, _ string, _ agent.AgentType) (agent.Status, string, error) {
-	status := f.statuses[len(f.statuses)-1]
-	if f.calls < len(f.statuses) {
-		status = f.statuses[f.calls]
-	}
 	f.calls++
+	if f.err != nil {
+		return agent.StatusUnknown, "", f.err
+	}
+	status := f.statuses[len(f.statuses)-1]
+	if f.calls <= len(f.statuses) {
+		status = f.statuses[f.calls-1]
+	}
 	return status, "", nil
 }
 
@@ -162,6 +167,45 @@ func TestWaitForWorkspaceStatusTimesOut(t *testing.T) {
 	}
 	if got != agent.StatusWorking {
 		t.Fatalf("last status = %s, want Working", got)
+	}
+}
+
+func TestWaitForWorkspaceStatusPropagatesUnexpectedDetectionError(t *testing.T) {
+	store := &fakeWorkspaceStore{workspaces: []workspace.Workspace{{
+		ID:          "ws-1",
+		Title:       "alpha",
+		AgentType:   agent.Claude,
+		PaneTargets: map[string]string{"agent": "%3"},
+	}}}
+	detector := &fakeStatusDetector{err: errors.New("tmux unavailable")}
+
+	_, got, _, err := waitForWorkspaceStatus(context.Background(), store, detector, "alpha", agent.StatusStopped, time.Second, time.Millisecond)
+	if err == nil {
+		t.Fatal("expected detection error")
+	}
+	if !strings.Contains(err.Error(), "detect status for workspace") || !strings.Contains(err.Error(), "tmux unavailable") {
+		t.Fatalf("error = %v, want contextual detection error", err)
+	}
+	if got != agent.StatusUnknown {
+		t.Fatalf("status = %s, want Unknown", got)
+	}
+}
+
+func TestWaitForWorkspaceStatusTreatsMissingPaneAsStopped(t *testing.T) {
+	store := &fakeWorkspaceStore{workspaces: []workspace.Workspace{{
+		ID:          "ws-1",
+		Title:       "alpha",
+		AgentType:   agent.Claude,
+		PaneTargets: map[string]string{"agent": "%3"},
+	}}}
+	detector := &fakeStatusDetector{err: &tmux.TmuxError{Args: []string{"capture-pane"}, Stderr: "can't find pane: %3"}}
+
+	ws, got, _, err := waitForWorkspaceStatus(context.Background(), store, detector, "alpha", agent.StatusStopped, time.Second, time.Millisecond)
+	if err != nil {
+		t.Fatalf("waitForWorkspaceStatus: %v", err)
+	}
+	if ws.ID != "ws-1" || got != agent.StatusStopped {
+		t.Fatalf("got workspace %q status %s, want ws-1 Stopped", ws.ID, got)
 	}
 }
 
