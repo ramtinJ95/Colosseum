@@ -18,7 +18,10 @@ func newDeleteCmd() *cobra.Command {
 
 func runDelete(_ *cobra.Command, args []string) error {
 	name := args[0]
-	store := newStore()
+	store, err := newStore()
+	if err != nil {
+		return err
+	}
 	client := newTmuxClient()
 	mgr := newManager(store, client)
 

@@ -36,7 +36,10 @@ func runBroadcast(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("broadcast requires at least one workspace name")
 	}
 
-	store := newStore()
+	store, err := newStore()
+	if err != nil {
+		return err
+	}
 	client := newTmuxClient()
 	mgr := newManager(store, client)
 

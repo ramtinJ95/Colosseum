@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -66,6 +68,34 @@ func (f *fakeDashboardSessionController) SwitchSession(_ context.Context, name s
 func (f *fakeDashboardSessionController) AttachSession(_ context.Context, name string) error {
 	f.attachCalls = append(f.attachCalls, name)
 	return f.attachErr
+}
+
+func TestNewStoreAtCreatesStateDir(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "config", "colosseum")
+
+	store, err := newStoreAt(dir)
+	if err != nil {
+		t.Fatalf("newStoreAt: %v", err)
+	}
+	if store == nil {
+		t.Fatal("store is nil")
+	}
+	if info, err := os.Stat(dir); err != nil {
+		t.Fatalf("state dir not created: %v", err)
+	} else if !info.IsDir() {
+		t.Fatalf("state path is not a directory: %s", dir)
+	}
+}
+
+func TestNewStoreAtSurfacesStateDirCreationFailure(t *testing.T) {
+	filePath := filepath.Join(t.TempDir(), "config-file")
+	if err := os.WriteFile(filePath, []byte("not a directory"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	if _, err := newStoreAt(filepath.Join(filePath, "colosseum")); err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestDashboardBootstrapRunsInlineForInternalProcess(t *testing.T) {

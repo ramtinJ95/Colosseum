@@ -19,7 +19,10 @@ func newListCmd() *cobra.Command {
 }
 
 func runList(_ *cobra.Command, _ []string) error {
-	store := newStore()
+	store, err := newStore()
+	if err != nil {
+		return err
+	}
 	workspaces, err := store.List()
 	if err != nil {
 		return fmt.Errorf("list workspaces: %w", err)
