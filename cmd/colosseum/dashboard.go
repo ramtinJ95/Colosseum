@@ -29,7 +29,10 @@ func runDashboard(_ *cobra.Command, _ []string) error {
 }
 
 func runDashboardProgram() (runErr error) {
-	store := newStore()
+	store, err := newStore()
+	if err != nil {
+		return err
+	}
 	client := newTmuxClient()
 	mgr := newManager(store, client)
 

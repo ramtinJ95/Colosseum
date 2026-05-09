@@ -42,10 +42,15 @@ func stateDir() string {
 	return filepath.Join(dir, "colosseum")
 }
 
-func newStore() *workspace.Store {
-	dir := stateDir()
-	os.MkdirAll(dir, 0o755)
-	return workspace.NewStore(filepath.Join(dir, "workspaces.json"))
+func newStore() (*workspace.Store, error) {
+	return newStoreAt(stateDir())
+}
+
+func newStoreAt(dir string) (*workspace.Store, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("create state dir %s: %w", dir, err)
+	}
+	return workspace.NewStore(filepath.Join(dir, "workspaces.json")), nil
 }
 
 func newTmuxClient() *tmux.Client {

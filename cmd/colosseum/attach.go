@@ -20,7 +20,10 @@ func newAttachCmd() *cobra.Command {
 
 func runAttach(_ *cobra.Command, args []string) error {
 	name := args[0]
-	store := newStore()
+	store, err := newStore()
+	if err != nil {
+		return err
+	}
 	client := newTmuxClient()
 	mgr := newManager(store, client)
 

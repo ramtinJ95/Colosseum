@@ -62,7 +62,10 @@ func runNew(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("resolve path: %w", err)
 	}
 
-	store := newStore()
+	store, err := newStore()
+	if err != nil {
+		return err
+	}
 	client := newTmuxClient()
 	mgr := newManager(store, client)
 	mode := workspace.CreateMode(flagMode)
