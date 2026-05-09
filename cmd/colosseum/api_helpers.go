@@ -9,6 +9,7 @@ import (
 
 	"github.com/ramtinj/colosseum/internal/agent"
 	"github.com/ramtinj/colosseum/internal/status"
+	"github.com/ramtinj/colosseum/internal/tmux"
 	"github.com/ramtinj/colosseum/internal/workspace"
 )
 
@@ -86,11 +87,14 @@ func refreshWorkspaceStatuses(ctx context.Context, store workspaceStore, detecto
 func detectWorkspaceStatus(ctx context.Context, ws workspace.Workspace, detector workspaceStatusDetector) (agent.Status, error) {
 	agentPane, ok := ws.PaneTargets["agent"]
 	if !ok || strings.TrimSpace(agentPane) == "" {
-		return ws.Status, nil
+		return agent.StatusStopped, nil
 	}
 	detected, _, err := detector.Detect(ctx, agentPane, ws.AgentType)
 	if err != nil {
-		return agent.StatusStopped, nil
+		if tmux.IsPaneNotFound(err) || tmux.IsSessionNotFound(err) {
+			return agent.StatusStopped, nil
+		}
+		return agent.StatusUnknown, fmt.Errorf("detect status for workspace %q: %w", ws.Title, err)
 	}
 	return detected, nil
 }
