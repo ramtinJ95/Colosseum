@@ -279,10 +279,6 @@ func (a App) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.statusBar = unavailableFeatureStatus("Workspace filter")
 			return a, nil
 
-		case key.Matches(msg, a.keys.MarkRead):
-			a.statusBar = unavailableFeatureStatus("Mark read")
-			return a, nil
-
 		case key.Matches(msg, a.keys.Restart):
 			a.statusBar = unavailableFeatureStatus("Restart agent")
 			return a, nil
