@@ -36,6 +36,7 @@ Remaining maintenance items in `scratch/BACKLOG.md` can be handled separately; t
 
 ## Guiding Principles
 
+- Keep near-term agent creation and integrations focused on Claude Code, Codex, OpenCode, and Pi.
 - Keep tmux as the runtime; do not reimplement a terminal emulator.
 - Treat tmux sessions/panes as infrastructure and Colosseum workspaces/checkouts/experiments as the product model.
 - Prefer semantic state reports from agent hooks when available; keep screen scraping as fallback.
