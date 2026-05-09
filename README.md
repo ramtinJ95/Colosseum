@@ -15,7 +15,7 @@ A tmux-native TUI for managing parallel AI coding agent workspaces and `worktrun
 │ │    codex · waiting           │                               │   │
 │ │                              │                               │   │
 │ │  ○ fix-tests    [bugfix]    │                               │   │
-│ │    gemini · idle             │                               │   │
+│ │    opencode · idle           │                               │   │
 │ │                              │                               │   │
 │ └──────────────────────────────┴───────────────────────────────┘   │
 └────────────────────────────────────────────────────────────────────┘
@@ -133,6 +133,20 @@ colosseum list
   ◉ api-v2 [feat/api] (codex · Waiting)
   ○ fix-tests [bugfix] (codex · Idle)
 ```
+
+For scripts and agents, use the JSON control-plane commands:
+
+```bash
+colosseum workspace list --json
+colosseum workspace get my-feature --json
+colosseum status get my-feature --json
+colosseum pane list my-feature --json
+colosseum pane read my-feature --pane agent --lines 80 --json
+colosseum wait status my-feature --status Idle --timeout 10m --json
+colosseum wait output my-feature --pane agent --match "Done" --timeout 30s --json
+```
+
+Workspace arguments resolve by ID first, then exact title. Pane arguments resolve by role, such as `agent`, or by raw tmux pane target, such as `%3`.
 
 ### Attach to a workspace
 

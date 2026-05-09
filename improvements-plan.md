@@ -239,9 +239,23 @@ Deliverable:
 
 ### Milestone A: Scriptable Colosseum
 
-- Add JSON workspace/status/pane commands.
-- Add wait commands for status and output.
-- Add tests around command behavior and timeouts.
+Status: PR #14 implements the first CLI slice in `feat/scriptable-control-plane`.
+
+PR #14 includes:
+
+- JSON workspace/status/pane commands for `workspace list/get`, `status get`, and `pane list/read`.
+- Wait commands for status and output.
+- Stable JSON response structs in `internal/cliapi`.
+- Shared workspace and pane resolution helpers.
+- Tests around workspace resolution, pane read JSON, status waits, and timeout behavior.
+
+Continue in the next PR with:
+
+- `colosseum workspace create ...` as a scriptable wrapper around current `new` behavior.
+- `colosseum workspace focus ...` as a scriptable wrapper around current `attach` behavior.
+- `colosseum workspace delete ...` as a scriptable wrapper around current `delete` behavior.
+- `colosseum pane send ...` and `colosseum pane run ...`.
+- Cobra-level command tests for flags, stdout JSON shape, and error paths.
 
 ### Milestone B: Hook-Reported Status
 
