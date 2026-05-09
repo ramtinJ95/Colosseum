@@ -18,7 +18,6 @@ type KeyMap struct {
 	Rename    key.Binding
 	Filter    key.Binding
 	Tab       key.Binding
-	MarkRead  key.Binding
 	JumpNext  key.Binding
 	Restart   key.Binding
 	Stop      key.Binding
@@ -79,10 +78,6 @@ func KeyMapFromConfig(kc config.KeysConfig) KeyMap {
 		Tab: key.NewBinding(
 			key.WithKeys(kc.Tab),
 			key.WithHelp(kc.Tab, "cycle section"),
-		),
-		MarkRead: key.NewBinding(
-			key.WithKeys(kc.MarkRead),
-			key.WithHelp(kc.MarkRead, "mark read"),
 		),
 		JumpNext: key.NewBinding(
 			key.WithKeys(kc.JumpNext),

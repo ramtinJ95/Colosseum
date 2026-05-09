@@ -47,7 +47,6 @@ func unavailableHelpItems(keys KeyMap) []dialog.HelpItem {
 	return []dialog.HelpItem{
 		{Key: dialog.BindingLabel(keys.Diff), Desc: "Diff viewer (unavailable)"},
 		{Key: dialog.BindingLabel(keys.Filter), Desc: "Filter workspaces (unavailable)"},
-		{Key: dialog.BindingLabel(keys.MarkRead), Desc: "Mark read (unavailable)"},
 		{Key: dialog.BindingLabel(keys.Restart), Desc: "Restart agent (unavailable)"},
 		{Key: dialog.BindingLabel(keys.Stop), Desc: "Stop agent (unavailable)"},
 	}

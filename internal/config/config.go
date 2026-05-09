@@ -53,7 +53,6 @@ type KeysConfig struct {
 	Rename    string `toml:"rename"`
 	Filter    string `toml:"filter"`
 	Tab       string `toml:"tab"`
-	MarkRead  string `toml:"mark_read"`
 	JumpNext  string `toml:"jump_next"`
 	Restart   string `toml:"restart"`
 	Stop      string `toml:"stop"`
@@ -111,7 +110,6 @@ func Default() Config {
 			Rename:    "r",
 			Filter:    "/",
 			Tab:       "tab",
-			MarkRead:  "m",
 			JumpNext:  "J",
 			Restart:   "R",
 			Stop:      "s",
@@ -191,7 +189,6 @@ func validateKeyBindings(keys KeysConfig) error {
 		{name: "keys.rename", key: keys.Rename},
 		{name: "keys.filter", key: keys.Filter},
 		{name: "keys.tab", key: keys.Tab},
-		{name: "keys.mark_read", key: keys.MarkRead},
 		{name: "keys.jump_next", key: keys.JumpNext},
 		{name: "keys.restart", key: keys.Restart},
 		{name: "keys.stop", key: keys.Stop},

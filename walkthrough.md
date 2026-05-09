@@ -235,7 +235,6 @@ func Default() Config {
 			Rename:    "r",
 			Filter:    "/",
 			Tab:       "tab",
-			MarkRead:  "m",
 			JumpNext:  "J",
 			Restart:   "R",
 			Stop:      "s",
