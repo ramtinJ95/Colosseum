@@ -39,6 +39,8 @@ func init() {
 		newBroadcastCmd(),
 		newDeleteCmd(),
 		newWorkspaceCmd(),
+		newPaneCmd(),
 		newStatusCmd(),
+		newWaitCmd(),
 	)
 }
