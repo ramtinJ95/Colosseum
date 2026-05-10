@@ -35,12 +35,19 @@ func (f *fakeWorkspaceStore) Save(workspaces []workspace.Workspace) error {
 type fakePaneClient struct {
 	content      string
 	captureCalls []fakeCaptureCall
+	sendCalls    []fakeSendCall
 	panes        []tmux.PaneInfo
 }
 
 type fakeCaptureCall struct {
 	target string
 	lines  int
+}
+
+type fakeSendCall struct {
+	target string
+	keys   string
+	opts   tmux.SendOptions
 }
 
 func (f *fakePaneClient) CapturePane(_ context.Context, target string, lines int) (string, error) {
@@ -50,6 +57,11 @@ func (f *fakePaneClient) CapturePane(_ context.Context, target string, lines int
 
 func (f *fakePaneClient) ListPanes(_ context.Context, _ string) ([]tmux.PaneInfo, error) {
 	return f.panes, nil
+}
+
+func (f *fakePaneClient) SendKeys(_ context.Context, target string, keys string, opts tmux.SendOptions) error {
+	f.sendCalls = append(f.sendCalls, fakeSendCall{target: target, keys: keys, opts: opts})
+	return nil
 }
 
 type fakeStatusDetector struct {
@@ -223,5 +235,101 @@ func TestWaitForPaneOutputTimesOut(t *testing.T) {
 	}
 	if len(paneClient.captureCalls) == 0 {
 		t.Fatal("expected pane capture calls")
+	}
+}
+
+func TestRunPaneSendWithDepsUsesAgentOptions(t *testing.T) {
+	store := &fakeWorkspaceStore{workspaces: []workspace.Workspace{{
+		ID:          "ws-1",
+		Title:       "alpha",
+		AgentType:   agent.Codex,
+		PaneTargets: map[string]string{"agent": "%3"},
+	}}}
+	paneClient := &fakePaneClient{}
+	var out bytes.Buffer
+
+	if err := runPaneSendWithDeps(context.Background(), &out, store, paneClient, "alpha", "agent", "ship it", "send", true); err != nil {
+		t.Fatalf("runPaneSendWithDeps: %v", err)
+	}
+	if len(paneClient.sendCalls) != 1 {
+		t.Fatalf("sendCalls = %d, want 1", len(paneClient.sendCalls))
+	}
+	call := paneClient.sendCalls[0]
+	if call.target != "%3" || call.keys != "ship it" {
+		t.Fatalf("send call = %+v, want target %%3 keys ship it", call)
+	}
+	if !call.opts.ForcePaste {
+		t.Fatal("codex agent pane send should force paste single-line text")
+	}
+
+	var got struct {
+		Action string `json:"action"`
+		Target string `json:"target"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("decode JSON: %v\n%s", err, out.String())
+	}
+	if got.Action != "send" || got.Target != "%3" {
+		t.Fatalf("JSON response = %+v, want send %%3", got)
+	}
+}
+
+func TestRunPaneSendWithDepsRunsCommandInShellPane(t *testing.T) {
+	store := &fakeWorkspaceStore{workspaces: []workspace.Workspace{{
+		ID:          "ws-1",
+		Title:       "alpha",
+		AgentType:   agent.Codex,
+		PaneTargets: map[string]string{"agent": "%3", "shell": "%4"},
+	}}}
+	paneClient := &fakePaneClient{}
+	var out bytes.Buffer
+
+	if err := runPaneSendWithDeps(context.Background(), &out, store, paneClient, "alpha", "shell", "go test ./...", "run", false); err != nil {
+		t.Fatalf("runPaneSendWithDeps: %v", err)
+	}
+	if len(paneClient.sendCalls) != 1 {
+		t.Fatalf("sendCalls = %d, want 1", len(paneClient.sendCalls))
+	}
+	call := paneClient.sendCalls[0]
+	if call.target != "%4" || call.keys != "go test ./..." {
+		t.Fatalf("send call = %+v, want target %%4 command", call)
+	}
+	if call.opts.ForcePaste || call.opts.DisableBracketedPaste || call.opts.InputDelay != 0 {
+		t.Fatalf("shell command options = %+v, want zero values", call.opts)
+	}
+	if got := out.String(); !strings.Contains(got, "run sent to %4") {
+		t.Fatalf("output = %q, want run confirmation", got)
+	}
+}
+
+func TestWorkspaceCreateRequiresTitleFlag(t *testing.T) {
+	cmd := newWorkspaceCreateCmd()
+	cmd.SetArgs([]string{"--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected required title flag error")
+	}
+	if !strings.Contains(err.Error(), "required flag") || !strings.Contains(err.Error(), "title") {
+		t.Fatalf("error = %v, want required title flag", err)
+	}
+}
+
+func TestPaneRunRequiresCommandFlag(t *testing.T) {
+	cmd := newPaneRunCmd()
+	cmd.SetArgs([]string{"alpha"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected required command flag error")
+	}
+	if !strings.Contains(err.Error(), "required flag") || !strings.Contains(err.Error(), "command") {
+		t.Fatalf("error = %v, want required command flag", err)
 	}
 }
