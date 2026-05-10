@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ramtinj/colosseum/internal/agent"
@@ -52,8 +53,9 @@ func TestManagerCreate(t *testing.T) {
 	if h.sessions.sendKeysCalls[0].Target != "%0" {
 		t.Errorf("send-keys target = %q, want %%0", h.sessions.sendKeysCalls[0].Target)
 	}
-	if h.sessions.sendKeysCalls[0].Keys != "claude" {
-		t.Errorf("send-keys = %q, want %q", h.sessions.sendKeysCalls[0].Keys, "claude")
+	launchKeys := h.sessions.sendKeysCalls[0].Keys
+	if !strings.Contains(launchKeys, "COLOSSEUM_ENV='1'") || !strings.Contains(launchKeys, "COLOSSEUM_WORKSPACE_ID='") || !strings.Contains(launchKeys, "COLOSSEUM_PANE='agent'") || !strings.HasSuffix(launchKeys, " claude") {
+		t.Errorf("send-keys = %q, want Colosseum env vars and claude launch", launchKeys)
 	}
 
 	if got := len(h.mustList(t)); got != 1 {
