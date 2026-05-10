@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"fmt"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -41,6 +43,25 @@ func (s Status) String() string {
 		return "Error"
 	default:
 		return "Unknown"
+	}
+}
+
+func ParseStatus(value string) (Status, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "unknown":
+		return StatusUnknown, nil
+	case "working":
+		return StatusWorking, nil
+	case "waiting", "blocked":
+		return StatusWaiting, nil
+	case "idle":
+		return StatusIdle, nil
+	case "stopped":
+		return StatusStopped, nil
+	case "error":
+		return StatusError, nil
+	default:
+		return StatusUnknown, fmt.Errorf("unknown status %q", value)
 	}
 }
 

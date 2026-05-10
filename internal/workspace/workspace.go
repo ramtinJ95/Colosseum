@@ -105,6 +105,15 @@ type Workspace struct {
 	CreatedAt         time.Time         `json:"created_at"`
 }
 
+type AgentStatusReport struct {
+	WorkspaceID string          `json:"workspace_id"`
+	Pane        string          `json:"pane"`
+	AgentType   agent.AgentType `json:"agent_type,omitempty"`
+	Status      string          `json:"status"`
+	Source      string          `json:"source,omitempty"`
+	ReportedAt  time.Time       `json:"reported_at"`
+}
+
 type Experiment struct {
 	ID               string                  `json:"id"`
 	RepositoryID     string                  `json:"repository_id"`
@@ -131,9 +140,10 @@ type Evaluation struct {
 }
 
 type State struct {
-	Workspaces   []Workspace  `json:"workspaces,omitempty"`
-	Repositories []Repository `json:"repositories,omitempty"`
-	Checkouts    []Checkout   `json:"checkouts,omitempty"`
-	Experiments  []Experiment `json:"experiments,omitempty"`
-	Evaluations  []Evaluation `json:"evaluations,omitempty"`
+	Workspaces         []Workspace         `json:"workspaces,omitempty"`
+	Repositories       []Repository        `json:"repositories,omitempty"`
+	Checkouts          []Checkout          `json:"checkouts,omitempty"`
+	Experiments        []Experiment        `json:"experiments,omitempty"`
+	Evaluations        []Evaluation        `json:"evaluations,omitempty"`
+	AgentStatusReports []AgentStatusReport `json:"agent_status_reports,omitempty"`
 }
