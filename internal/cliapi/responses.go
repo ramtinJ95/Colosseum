@@ -34,6 +34,30 @@ type WorkspaceResponse struct {
 	Workspace Workspace `json:"workspace"`
 }
 
+type BroadcastFailure struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	WorkspaceTitle string `json:"workspace_title,omitempty"`
+	Error          string `json:"error"`
+}
+
+type BroadcastResult struct {
+	Requested int                `json:"requested"`
+	Delivered []string           `json:"delivered,omitempty"`
+	Failed    []BroadcastFailure `json:"failed,omitempty"`
+}
+
+type WorkspaceCreateResponse struct {
+	Workspace  *Workspace            `json:"workspace,omitempty"`
+	Workspaces []Workspace           `json:"workspaces,omitempty"`
+	Experiment *workspace.Experiment `json:"experiment,omitempty"`
+	Broadcast  BroadcastResult       `json:"broadcast,omitempty"`
+}
+
+type WorkspaceActionResponse struct {
+	Workspace Workspace `json:"workspace"`
+	Action    string    `json:"action"`
+}
+
 type StatusResponse struct {
 	Workspace Workspace `json:"workspace"`
 	Status    string    `json:"status"`
@@ -74,6 +98,13 @@ type WaitOutputResponse struct {
 	ElapsedMS int64     `json:"elapsed_ms"`
 }
 
+type PaneActionResponse struct {
+	Workspace Workspace `json:"workspace"`
+	Pane      string    `json:"pane"`
+	Target    string    `json:"target"`
+	Action    string    `json:"action"`
+}
+
 func NewWorkspace(ws workspace.Workspace) Workspace {
 	paneTargets := make(map[string]string, len(ws.PaneTargets))
 	for role, target := range ws.PaneTargets {
@@ -105,4 +136,24 @@ func NewWorkspaces(workspaces []workspace.Workspace) []Workspace {
 		result = append(result, NewWorkspace(ws))
 	}
 	return result
+}
+
+func NewBroadcastResult(result workspace.BroadcastResult) BroadcastResult {
+	failures := make([]BroadcastFailure, 0, len(result.Failed))
+	for _, failure := range result.Failed {
+		message := ""
+		if failure.Err != nil {
+			message = failure.Err.Error()
+		}
+		failures = append(failures, BroadcastFailure{
+			WorkspaceID:    failure.WorkspaceID,
+			WorkspaceTitle: failure.WorkspaceTitle,
+			Error:          message,
+		})
+	}
+	return BroadcastResult{
+		Requested: result.Requested,
+		Delivered: append([]string(nil), result.Delivered...),
+		Failed:    failures,
+	}
 }

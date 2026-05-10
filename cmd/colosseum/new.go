@@ -3,11 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
-	"github.com/ramtinj/colosseum/internal/agent"
 	"github.com/ramtinj/colosseum/internal/workspace"
 )
 
@@ -41,84 +39,37 @@ func newNewCmd() *cobra.Command {
 }
 
 func runNew(_ *cobra.Command, args []string) error {
-	name := args[0]
-	agentType := agent.AgentType(flagAgent)
-
-	if !agent.IsSupported(agentType) {
-		return fmt.Errorf("unsupported agent type: %s (supported: %v)", flagAgent, agent.Supported())
-	}
-
-	if _, ok := agent.Get(agentType); !ok {
-		return fmt.Errorf("agent type %q is not registered", flagAgent)
-	}
-
-	layout := workspace.LayoutType(flagLayout)
-	if !workspace.IsValidLayout(layout) {
-		return fmt.Errorf("invalid layout %q (valid: %v)", flagLayout, workspace.ValidLayouts())
-	}
-
-	absPath, err := filepath.Abs(flagPath)
-	if err != nil {
-		return fmt.Errorf("resolve path: %w", err)
-	}
-
-	store, err := newStore()
+	result, err := createWorkspace(context.Background(), createWorkspaceOptions{
+		Title:          args[0],
+		Path:           flagPath,
+		Agent:          flagAgent,
+		Branch:         flagBranch,
+		BaseBranch:     flagBaseBranch,
+		Layout:         flagLayout,
+		Mode:           flagMode,
+		Prompt:         flagPrompt,
+		CandidateCount: flagCandidateCount,
+		AgentStrategy:  flagAgentStrategy,
+	})
 	if err != nil {
 		return err
 	}
-	client := newTmuxClient()
-	mgr := newManager(store, client)
-	mode := workspace.CreateMode(flagMode)
 
-	switch mode {
-	case workspace.CreateModeNewWorktree:
-		ws, err := mgr.CreateWithWorktree(context.Background(), workspace.ManagedWorkspaceRequest{
-			Title:      name,
-			AgentType:  agentType,
-			RepoRoot:   absPath,
-			Branch:     flagBranch,
-			BaseBranch: flagBaseBranch,
-			Layout:     layout,
-		})
-		if err != nil {
-			return fmt.Errorf("create worktree workspace: %w", err)
-		}
-		fmt.Printf("Created workspace %q (session: %s, branch: %s)\n", ws.Title, ws.SessionName, ws.Branch)
-		return nil
-	case workspace.CreateModeExperimentRun:
-		result, err := mgr.CreateExperiment(context.Background(), workspace.ExperimentRequest{
-			Title:          name,
-			Prompt:         flagPrompt,
-			RepoRoot:       absPath,
-			BaseBranch:     flagBaseBranch,
-			CandidateCount: flagCandidateCount,
-			AgentStrategy:  workspace.ExperimentAgentStrategy(flagAgentStrategy),
-			AgentType:      agentType,
-			Layout:         layout,
-		})
-		if err != nil {
-			return fmt.Errorf("create experiment: %w", err)
-		}
+	if result.Experiment != nil {
 		fmt.Printf("Created experiment %q with %d workspaces\n", result.Experiment.Title, len(result.Workspaces))
 		if len(result.Broadcast.Delivered) > 0 || len(result.Broadcast.Failed) > 0 {
 			fmt.Println(formatBroadcastStatus(result.Broadcast))
 		}
 		return nil
-	case workspace.CreateModeExistingCheckout:
-		ws, err := mgr.CreateStandalone(context.Background(), workspace.StandaloneWorkspaceRequest{
-			Title:        name,
-			AgentType:    agentType,
-			CheckoutPath: absPath,
-			Layout:       layout,
-		})
-		if err != nil {
-			return fmt.Errorf("create workspace: %w", err)
-		}
-		fmt.Printf("Created workspace %q (session: %s)\n", ws.Title, ws.SessionName)
-		return nil
-	default:
-		return fmt.Errorf("unsupported create mode %q", flagMode)
 	}
+	if result.Workspace != nil {
+		if result.Workspace.Branch != "" && workspace.CreateMode(flagMode) == workspace.CreateModeNewWorktree {
+			fmt.Printf("Created workspace %q (session: %s, branch: %s)\n", result.Workspace.Title, result.Workspace.SessionName, result.Workspace.Branch)
+			return nil
+		}
+		fmt.Printf("Created workspace %q (session: %s)\n", result.Workspace.Title, result.Workspace.SessionName)
+	}
+	return nil
 }
 
 func formatBroadcastStatus(result workspace.BroadcastResult) string {
