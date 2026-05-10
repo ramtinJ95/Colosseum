@@ -239,9 +239,9 @@ Deliverable:
 
 ### Milestone A: Scriptable Colosseum
 
-Status: PR #14 implements the first CLI slice in `feat/scriptable-control-plane`.
+Status: Milestone A's planned CLI command surface is complete as of PR #15.
 
-PR #14 includes:
+PR #14 implemented the first CLI slice:
 
 - JSON workspace/status/pane commands for `workspace list/get`, `status get`, and `pane list/read`.
 - Wait commands for status and output.
@@ -249,7 +249,7 @@ PR #14 includes:
 - Shared workspace and pane resolution helpers.
 - Tests around workspace resolution, pane read JSON, status waits, and timeout behavior.
 
-The follow-up PR completes the remaining Milestone A command surface:
+PR #15 completed the remaining Milestone A command surface:
 
 - `colosseum workspace create ...` as a scriptable wrapper around current `new` behavior.
 - `colosseum workspace focus ...` as a scriptable wrapper around current `attach` behavior.
@@ -257,7 +257,7 @@ The follow-up PR completes the remaining Milestone A command surface:
 - `colosseum pane send ...` and `colosseum pane run ...`.
 - Cobra-level command tests for required flags plus helper tests for pane send/run behavior.
 
-Milestone A follow-ups after the follow-up PR:
+Milestone A is done for now. Non-blocking follow-ups:
 
 - Review the JSON schema once agents have used it in real workflows.
 - Add more end-to-end command tests if regressions appear around tmux or state-file integration.
