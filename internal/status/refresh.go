@@ -8,23 +8,19 @@ import (
 )
 
 func RefreshWorkspaceStatuses(ctx context.Context, detector *Detector, workspaces []workspace.Workspace) ([]workspace.Workspace, bool) {
+	return RefreshWorkspaceStatusesWithReports(ctx, detector, workspaces, nil)
+}
+
+func RefreshWorkspaceStatusesWithReports(ctx context.Context, detector *Detector, workspaces []workspace.Workspace, reports []workspace.AgentStatusReport) ([]workspace.Workspace, bool) {
 	if detector == nil {
 		return workspaces, false
 	}
 
 	changed := false
 	for i := range workspaces {
-		next := workspaces[i].Status
-		agentPane, ok := workspaces[i].PaneTargets["agent"]
-		if !ok || agentPane == "" {
+		next, _, err := ResolveWorkspaceStatus(ctx, detector, workspaces[i], reports)
+		if err != nil {
 			next = agent.StatusStopped
-		} else {
-			status, _, err := detector.Detect(ctx, agentPane, workspaces[i].AgentType)
-			if err != nil {
-				next = agent.StatusStopped
-			} else {
-				next = status
-			}
 		}
 
 		if next != workspaces[i].Status {

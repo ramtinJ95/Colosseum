@@ -107,7 +107,7 @@ func waitForWorkspaceStatus(ctx context.Context, store workspaceStore, detector 
 	started := time.Now()
 
 	check := func() (workspace.Workspace, agent.Status, error) {
-		workspaces, err := store.List()
+		workspaces, reports, err := loadWorkspacesAndReports(store)
 		if err != nil {
 			return workspace.Workspace{}, agent.StatusUnknown, fmt.Errorf("list workspaces: %w", err)
 		}
@@ -115,7 +115,7 @@ func waitForWorkspaceStatus(ctx context.Context, store workspaceStore, detector 
 		if err != nil {
 			return workspace.Workspace{}, agent.StatusUnknown, err
 		}
-		current, err := detectWorkspaceStatus(ctx, ws, detector)
+		current, err := detectWorkspaceStatusWithReports(ctx, ws, detector, reports)
 		if err != nil {
 			return workspace.Workspace{}, agent.StatusUnknown, err
 		}

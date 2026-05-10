@@ -18,6 +18,10 @@ type WorkspaceProvider interface {
 	List() ([]workspace.Workspace, error)
 }
 
+type StateProvider interface {
+	LoadState() (workspace.State, error)
+}
+
 type workspaceState struct {
 	confirmed    agent.Status
 	confirmedAt  time.Time
@@ -86,7 +90,7 @@ func (p *Poller) Run(ctx context.Context) {
 }
 
 func (p *Poller) poll(ctx context.Context) {
-	workspaces, err := p.provider.List()
+	workspaces, reports, err := p.loadWorkspacesAndReports()
 	if err != nil {
 		now := time.Now()
 		p.mu.Lock()
@@ -123,12 +127,7 @@ func (p *Poller) poll(ctx context.Context) {
 
 	now := time.Now()
 	for _, ws := range workspaces {
-		agentPane, ok := ws.PaneTargets["agent"]
-		if !ok {
-			continue
-		}
-
-		detected, content, err := p.detector.Detect(ctx, agentPane, ws.AgentType)
+		detected, content, err := ResolveWorkspaceStatus(ctx, p.detector, ws, reports)
 		if err != nil {
 			detected = agent.StatusStopped
 		}
@@ -161,6 +160,18 @@ func (p *Poller) poll(ctx context.Context) {
 			p.mu.Unlock()
 		}
 	}
+}
+
+func (p *Poller) loadWorkspacesAndReports() ([]workspace.Workspace, []workspace.AgentStatusReport, error) {
+	if provider, ok := p.provider.(StateProvider); ok {
+		state, err := provider.LoadState()
+		if err != nil {
+			return nil, nil, err
+		}
+		return state.Workspaces, state.AgentStatusReports, nil
+	}
+	workspaces, err := p.provider.List()
+	return workspaces, nil, err
 }
 
 // shouldTransition applies spike detection and hysteresis filtering to

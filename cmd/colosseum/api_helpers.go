@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/ramtinj/colosseum/internal/agent"
 	"github.com/ramtinj/colosseum/internal/status"
@@ -16,6 +17,10 @@ import (
 type workspaceStore interface {
 	List() ([]workspace.Workspace, error)
 	Save([]workspace.Workspace) error
+}
+
+type workspaceStateStore interface {
+	LoadState() (workspace.State, error)
 }
 
 type workspaceStatusDetector interface {
@@ -71,11 +76,11 @@ func resolvePaneTarget(ws workspace.Workspace, pane string) (string, error) {
 }
 
 func refreshWorkspaceStatuses(ctx context.Context, store workspaceStore, detector *status.Detector) ([]workspace.Workspace, error) {
-	workspaces, err := store.List()
+	workspaces, reports, err := loadWorkspacesAndReports(store)
 	if err != nil {
 		return nil, fmt.Errorf("list workspaces: %w", err)
 	}
-	workspaces, changed := status.RefreshWorkspaceStatuses(ctx, detector, workspaces)
+	workspaces, changed := status.RefreshWorkspaceStatusesWithReports(ctx, detector, workspaces, reports)
 	if changed {
 		if err := store.Save(workspaces); err != nil {
 			return nil, fmt.Errorf("saving refreshed statuses: %w", err)
@@ -84,7 +89,26 @@ func refreshWorkspaceStatuses(ctx context.Context, store workspaceStore, detecto
 	return workspaces, nil
 }
 
+func loadWorkspacesAndReports(store workspaceStore) ([]workspace.Workspace, []workspace.AgentStatusReport, error) {
+	if stateStore, ok := store.(workspaceStateStore); ok {
+		state, err := stateStore.LoadState()
+		if err != nil {
+			return nil, nil, err
+		}
+		return state.Workspaces, state.AgentStatusReports, nil
+	}
+	workspaces, err := store.List()
+	return workspaces, nil, err
+}
+
 func detectWorkspaceStatus(ctx context.Context, ws workspace.Workspace, detector workspaceStatusDetector) (agent.Status, error) {
+	return detectWorkspaceStatusWithReports(ctx, ws, detector, nil)
+}
+
+func detectWorkspaceStatusWithReports(ctx context.Context, ws workspace.Workspace, detector workspaceStatusDetector, reports []workspace.AgentStatusReport) (agent.Status, error) {
+	if reported, ok := status.SelectReport(ws, "agent", reports, time.Now(), status.DefaultReportMaxAge); ok {
+		return reported, nil
+	}
 	agentPane, ok := ws.PaneTargets["agent"]
 	if !ok || strings.TrimSpace(agentPane) == "" {
 		return agent.StatusStopped, nil
@@ -100,20 +124,5 @@ func detectWorkspaceStatus(ctx context.Context, ws workspace.Workspace, detector
 }
 
 func parseAgentStatus(value string) (agent.Status, error) {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "unknown":
-		return agent.StatusUnknown, nil
-	case "working":
-		return agent.StatusWorking, nil
-	case "waiting", "blocked":
-		return agent.StatusWaiting, nil
-	case "idle":
-		return agent.StatusIdle, nil
-	case "stopped":
-		return agent.StatusStopped, nil
-	case "error":
-		return agent.StatusError, nil
-	default:
-		return agent.StatusUnknown, fmt.Errorf("unknown status %q", value)
-	}
+	return agent.ParseStatus(value)
 }

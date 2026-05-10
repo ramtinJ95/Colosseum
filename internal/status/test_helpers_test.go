@@ -51,10 +51,15 @@ func (m *mockCapturer) CapturePaneTitle(_ context.Context, _ string) (string, er
 
 type mockProvider struct {
 	workspaces []workspace.Workspace
+	reports    []workspace.AgentStatusReport
 }
 
 func (m *mockProvider) List() ([]workspace.Workspace, error) {
 	return m.workspaces, nil
+}
+
+func (m *mockProvider) LoadState() (workspace.State, error) {
+	return workspace.State{Workspaces: m.workspaces, AgentStatusReports: m.reports}, nil
 }
 
 type pollerHarness struct {

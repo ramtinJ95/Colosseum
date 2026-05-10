@@ -117,6 +117,24 @@ func TestPollerTitleDoesNotUpgradeIdle(t *testing.T) {
 	}
 }
 
+func TestPollerPrefersReportedStatus(t *testing.T) {
+	h := newPollerHarness(t, agent.Claude, testIdleContent)
+	h.provider.reports = []workspace.AgentStatusReport{{
+		WorkspaceID: "ws-1",
+		Pane:        "agent",
+		AgentType:   agent.Claude,
+		Status:      agent.StatusWorking.String(),
+		Source:      "test-hook",
+		ReportedAt:  time.Now(),
+	}}
+	h.start()
+
+	update := h.nextUpdate()
+	if update.Current != agent.StatusWorking {
+		t.Errorf("reported status should override terminal content, got %s", update.Current)
+	}
+}
+
 func TestRefreshWorkspaceStatuses(t *testing.T) {
 	detector := NewDetector(&mockCapturer{content: testIdleContent}, testDetectLines)
 	workspaces := []workspace.Workspace{statusTestWorkspace("ws-1", agent.Claude)}
@@ -128,5 +146,50 @@ func TestRefreshWorkspaceStatuses(t *testing.T) {
 	}
 	if refreshed[0].Status != agent.StatusIdle {
 		t.Fatalf("status = %s, want Idle", refreshed[0].Status)
+	}
+}
+
+func TestRefreshWorkspaceStatusesPrefersReport(t *testing.T) {
+	detector := NewDetector(&mockCapturer{content: testIdleContent}, testDetectLines)
+	workspaces := []workspace.Workspace{statusTestWorkspace("ws-1", agent.Claude)}
+	reports := []workspace.AgentStatusReport{{
+		WorkspaceID: "ws-1",
+		Pane:        "agent",
+		AgentType:   agent.Claude,
+		Status:      agent.StatusWorking.String(),
+		Source:      "test-hook",
+		ReportedAt:  time.Now(),
+	}}
+
+	refreshed, changed := RefreshWorkspaceStatusesWithReports(context.Background(), detector, workspaces, reports)
+	if !changed {
+		if refreshed[0].Status != agent.StatusWorking {
+			t.Fatalf("expected report to set Working")
+		}
+		t.Fatal("expected statuses to change")
+	}
+	if refreshed[0].Status != agent.StatusWorking {
+		t.Fatalf("status = %s, want Working", refreshed[0].Status)
+	}
+}
+
+func TestRefreshWorkspaceStatusesIgnoresStaleReport(t *testing.T) {
+	detector := NewDetector(&mockCapturer{content: testIdleContent}, testDetectLines)
+	workspaces := []workspace.Workspace{statusTestWorkspace("ws-1", agent.Claude)}
+	reports := []workspace.AgentStatusReport{{
+		WorkspaceID: "ws-1",
+		Pane:        "agent",
+		AgentType:   agent.Claude,
+		Status:      agent.StatusWorking.String(),
+		Source:      "test-hook",
+		ReportedAt:  time.Now().Add(-DefaultReportMaxAge - time.Minute),
+	}}
+
+	refreshed, changed := RefreshWorkspaceStatusesWithReports(context.Background(), detector, workspaces, reports)
+	if !changed {
+		t.Fatal("expected fallback detection to change status")
+	}
+	if refreshed[0].Status != agent.StatusIdle {
+		t.Fatalf("status = %s, want Idle fallback", refreshed[0].Status)
 	}
 }
