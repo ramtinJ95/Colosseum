@@ -249,13 +249,18 @@ PR #14 includes:
 - Shared workspace and pane resolution helpers.
 - Tests around workspace resolution, pane read JSON, status waits, and timeout behavior.
 
-Continue in the next PR with:
+The follow-up PR completes the remaining Milestone A command surface:
 
 - `colosseum workspace create ...` as a scriptable wrapper around current `new` behavior.
 - `colosseum workspace focus ...` as a scriptable wrapper around current `attach` behavior.
 - `colosseum workspace delete ...` as a scriptable wrapper around current `delete` behavior.
 - `colosseum pane send ...` and `colosseum pane run ...`.
-- Cobra-level command tests for flags, stdout JSON shape, and error paths.
+- Cobra-level command tests for required flags plus helper tests for pane send/run behavior.
+
+Milestone A follow-ups after the follow-up PR:
+
+- Review the JSON schema once agents have used it in real workflows.
+- Add more end-to-end command tests if regressions appear around tmux or state-file integration.
 
 ### Milestone B: Hook-Reported Status
 

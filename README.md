@@ -139,9 +139,14 @@ For scripts and agents, use the JSON control-plane commands:
 ```bash
 colosseum workspace list --json
 colosseum workspace get my-feature --json
+colosseum workspace create --title my-feature --path ~/projects/myapp --agent claude --json
+colosseum workspace focus my-feature --json
+colosseum workspace delete my-feature --json
 colosseum status get my-feature --json
 colosseum pane list my-feature --json
 colosseum pane read my-feature --pane agent --lines 80 --json
+colosseum pane send my-feature --pane agent --text "Summarize current status" --json
+colosseum pane run my-feature --pane shell --command "go test ./..." --json
 colosseum wait status my-feature --status Idle --timeout 10m --json
 colosseum wait output my-feature --pane agent --match "Done" --timeout 30s --json
 ```
