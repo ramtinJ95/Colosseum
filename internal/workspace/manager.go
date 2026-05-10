@@ -666,7 +666,7 @@ func (m *Manager) createRuntime(ctx context.Context, title string, agentType age
 		cleanup()
 		return nil, nil, fmt.Errorf("agent type %q is not registered", agentType)
 	}
-	launchCmd := def.Binary
+	launchCmd := colosseumAgentEnv(id, "agent", agentType, sessionName) + " " + def.Binary
 	for _, flag := range def.LaunchFlags {
 		launchCmd += " " + flag
 	}
@@ -709,6 +709,29 @@ func (m *Manager) workspaceSessionName(ws Workspace) string {
 		return ws.SessionName
 	}
 	return m.prefixedSessionName(ws.Title)
+}
+
+func colosseumAgentEnv(workspaceID string, pane string, agentType agent.AgentType, sessionName string) string {
+	values := map[string]string{
+		"COLOSSEUM_ENV":          "1",
+		"COLOSSEUM_WORKSPACE_ID": workspaceID,
+		"COLOSSEUM_PANE":         pane,
+		"COLOSSEUM_AGENT":        string(agentType),
+		"COLOSSEUM_SESSION":      sessionName,
+	}
+	keys := []string{"COLOSSEUM_ENV", "COLOSSEUM_WORKSPACE_ID", "COLOSSEUM_PANE", "COLOSSEUM_AGENT", "COLOSSEUM_SESSION"}
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, key+"="+shellQuote(values[key]))
+	}
+	return strings.Join(parts, " ")
+}
+
+func shellQuote(value string) string {
+	if value == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
 func upsertRepository(state *State, candidate Repository) Repository {
