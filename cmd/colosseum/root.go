@@ -42,5 +42,6 @@ func init() {
 		newPaneCmd(),
 		newStatusCmd(),
 		newWaitCmd(),
+		newAgentCmd(),
 	)
 }

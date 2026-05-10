@@ -105,6 +105,21 @@ type PaneActionResponse struct {
 	Action    string    `json:"action"`
 }
 
+type AgentStatusReport struct {
+	WorkspaceID string          `json:"workspace_id"`
+	Pane        string          `json:"pane"`
+	AgentType   agent.AgentType `json:"agent_type,omitempty"`
+	Status      string          `json:"status"`
+	Source      string          `json:"source,omitempty"`
+	ReportedAt  time.Time       `json:"reported_at"`
+}
+
+type AgentReportResponse struct {
+	Workspace Workspace         `json:"workspace"`
+	Report    AgentStatusReport `json:"report"`
+	Action    string            `json:"action"`
+}
+
 func NewWorkspace(ws workspace.Workspace) Workspace {
 	paneTargets := make(map[string]string, len(ws.PaneTargets))
 	for role, target := range ws.PaneTargets {
@@ -155,5 +170,16 @@ func NewBroadcastResult(result workspace.BroadcastResult) BroadcastResult {
 		Requested: result.Requested,
 		Delivered: append([]string(nil), result.Delivered...),
 		Failed:    failures,
+	}
+}
+
+func NewAgentStatusReport(report workspace.AgentStatusReport) AgentStatusReport {
+	return AgentStatusReport{
+		WorkspaceID: report.WorkspaceID,
+		Pane:        report.Pane,
+		AgentType:   report.AgentType,
+		Status:      report.Status,
+		Source:      report.Source,
+		ReportedAt:  report.ReportedAt,
 	}
 }
