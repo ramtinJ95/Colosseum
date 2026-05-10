@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -17,12 +18,17 @@ type paneListerReader interface {
 	CapturePane(ctx context.Context, target string, lines int) (string, error)
 }
 
+type paneController interface {
+	paneListerReader
+	SendKeys(ctx context.Context, target string, keys string, opts tmux.SendOptions) error
+}
+
 func newPaneCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pane",
 		Short: "Scriptable tmux pane operations",
 	}
-	cmd.AddCommand(newPaneListCmd(), newPaneReadCmd())
+	cmd.AddCommand(newPaneListCmd(), newPaneReadCmd(), newPaneSendCmd(), newPaneRunCmd())
 	return cmd
 }
 
@@ -168,4 +174,98 @@ func workspacePanes(ctx context.Context, lister paneListerReader, ws workspace.W
 		result = append(result, cliapi.Pane{Target: info.ID, Width: info.Width, Height: info.Height})
 	}
 	return result, nil
+}
+
+func newPaneSendCmd() *cobra.Command {
+	var pane string
+	var text string
+	var jsonOutput bool
+	cmd := &cobra.Command{
+		Use:   "send <workspace>",
+		Short: "Send text to a workspace pane",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runPaneSend(cmd.Context(), cmd.OutOrStdout(), args[0], pane, text, jsonOutput)
+		},
+	}
+	cmd.Flags().StringVar(&pane, "pane", "agent", "pane role or tmux pane target")
+	cmd.Flags().StringVar(&text, "text", "", "text to send")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable JSON")
+	_ = cmd.MarkFlagRequired("text")
+	return cmd
+}
+
+func newPaneRunCmd() *cobra.Command {
+	var pane string
+	var command string
+	var jsonOutput bool
+	cmd := &cobra.Command{
+		Use:   "run <workspace>",
+		Short: "Run a command in a workspace pane",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runPaneRun(cmd.Context(), cmd.OutOrStdout(), args[0], pane, command, jsonOutput)
+		},
+	}
+	cmd.Flags().StringVar(&pane, "pane", "shell", "pane role or tmux pane target")
+	cmd.Flags().StringVar(&command, "command", "", "command to run")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable JSON")
+	_ = cmd.MarkFlagRequired("command")
+	return cmd
+}
+
+func runPaneSend(ctx context.Context, out interface{ Write([]byte) (int, error) }, workspaceTarget, pane, text string, jsonOutput bool) error {
+	store, err := newStore()
+	if err != nil {
+		return err
+	}
+	client := newTmuxClient()
+	return runPaneSendWithDeps(ctx, out, store, client, workspaceTarget, pane, text, "send", jsonOutput)
+}
+
+func runPaneRun(ctx context.Context, out interface{ Write([]byte) (int, error) }, workspaceTarget, pane, command string, jsonOutput bool) error {
+	store, err := newStore()
+	if err != nil {
+		return err
+	}
+	client := newTmuxClient()
+	return runPaneSendWithDeps(ctx, out, store, client, workspaceTarget, pane, command, "run", jsonOutput)
+}
+
+func runPaneSendWithDeps(ctx context.Context, out interface{ Write([]byte) (int, error) }, store workspaceStore, controller paneController, workspaceTarget, pane, text, action string, jsonOutput bool) error {
+	if strings.TrimSpace(text) == "" {
+		if action == "run" {
+			return fmt.Errorf("run command cannot be empty")
+		}
+		return fmt.Errorf("send text cannot be empty")
+	}
+	workspaces, err := store.List()
+	if err != nil {
+		return fmt.Errorf("list workspaces: %w", err)
+	}
+	ws, err := resolveWorkspace(workspaces, workspaceTarget)
+	if err != nil {
+		return err
+	}
+	target, err := resolvePaneTarget(ws, pane)
+	if err != nil {
+		return err
+	}
+	opts := tmux.SendOptions{}
+	if pane == "agent" || target == ws.PaneTargets["agent"] {
+		opts = workspace.AgentSendOptions(ws, text)
+	}
+	if err := controller.SendKeys(ctx, target, text, opts); err != nil {
+		return fmt.Errorf("%s pane %q: %w", action, target, err)
+	}
+	if jsonOutput {
+		return writeJSON(out, cliapi.PaneActionResponse{
+			Workspace: cliapi.NewWorkspace(ws),
+			Pane:      pane,
+			Target:    target,
+			Action:    action,
+		})
+	}
+	_, err = fmt.Fprintf(out, "%s sent to %s\n", action, target)
+	return err
 }

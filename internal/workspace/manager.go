@@ -588,12 +588,7 @@ func (m *Manager) Broadcast(ctx context.Context, prompt string, workspaceIDs []s
 			continue
 		}
 
-		opts := tmux.SendOptions{}
-		if def, ok := agent.Get(ws.AgentType); ok {
-			opts.InputDelay = def.InputDelay
-			opts.ForcePaste = def.PasteSingleLine && !strings.Contains(prompt, "\n")
-			opts.DisableBracketedPaste = def.DisableBracketedPasteForMultiline && strings.Contains(prompt, "\n")
-		}
+		opts := AgentSendOptions(ws, prompt)
 
 		if err := m.sessions.SendKeys(ctx, agentPane, prompt, opts); err != nil {
 			result.Failed = append(result.Failed, BroadcastFailure{
