@@ -173,6 +173,27 @@ func TestRefreshWorkspaceStatusesPrefersReport(t *testing.T) {
 	}
 }
 
+func TestRefreshWorkspaceStatusesIgnoresMismatchedReportAgent(t *testing.T) {
+	detector := NewDetector(&mockCapturer{content: testIdleContent}, testDetectLines)
+	workspaces := []workspace.Workspace{statusTestWorkspace("ws-1", agent.Claude)}
+	reports := []workspace.AgentStatusReport{{
+		WorkspaceID: "ws-1",
+		Pane:        "agent",
+		AgentType:   agent.Codex,
+		Status:      agent.StatusWorking.String(),
+		Source:      "test-hook",
+		ReportedAt:  time.Now(),
+	}}
+
+	refreshed, changed := RefreshWorkspaceStatusesWithReports(context.Background(), detector, workspaces, reports)
+	if !changed {
+		t.Fatal("expected fallback detection to change status")
+	}
+	if refreshed[0].Status != agent.StatusIdle {
+		t.Fatalf("status = %s, want Idle fallback", refreshed[0].Status)
+	}
+}
+
 func TestRefreshWorkspaceStatusesIgnoresStaleReport(t *testing.T) {
 	detector := NewDetector(&mockCapturer{content: testIdleContent}, testDetectLines)
 	workspaces := []workspace.Workspace{statusTestWorkspace("ws-1", agent.Claude)}

@@ -558,11 +558,11 @@ func (a App) loadWorkspaces() tea.Msg {
 	if a.store == nil {
 		return workspacesLoadedMsg{}
 	}
-	ws, err := a.store.List()
+	state, err := a.store.LoadState()
 	if err != nil {
 		return errMsg{err: fmt.Errorf("load workspaces: %w", err)}
 	}
-	ws, changed := status.RefreshWorkspaceStatuses(context.Background(), a.detector, ws)
+	ws, changed := status.RefreshWorkspaceStatusesWithReports(context.Background(), a.detector, state.Workspaces, state.AgentStatusReports)
 	if changed {
 		if err := a.store.Save(ws); err != nil {
 			return errMsg{err: fmt.Errorf("save refreshed statuses: %w", err)}
