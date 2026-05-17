@@ -162,6 +162,10 @@ func (m *Manager) CreateStandalone(ctx context.Context, req StandaloneWorkspaceR
 	}
 
 	cleanupRuntime = nil
+	if err := m.launchAgent(ctx, *workspaceRecord); err != nil {
+		_ = m.Delete(context.Background(), workspaceRecord.ID)
+		return nil, err
+	}
 	return workspaceRecord, nil
 }
 
@@ -265,6 +269,10 @@ func (m *Manager) CreateWithWorktree(ctx context.Context, req ManagedWorkspaceRe
 	}
 
 	cleanupRuntime = nil
+	if err := m.launchAgent(ctx, *workspaceRecord); err != nil {
+		_ = m.Delete(context.Background(), workspaceRecord.ID)
+		return nil, err
+	}
 	return workspaceRecord, nil
 }
 
@@ -375,6 +383,14 @@ func (m *Manager) CreateExperiment(ctx context.Context, req ExperimentRequest) (
 	}); err != nil {
 		m.rollbackCandidates(created)
 		return nil, fmt.Errorf("saving experiment: %w", err)
+	}
+
+	for _, candidate := range created {
+		if err := m.launchAgent(ctx, *candidate.workspace); err != nil {
+			m.rollbackCandidates(created)
+			_ = m.removeExperimentState(context.Background(), experiment.ID)
+			return nil, err
+		}
 	}
 
 	result := &ExperimentCreateResult{
@@ -661,20 +677,6 @@ func (m *Manager) createRuntime(ctx context.Context, title string, agentType age
 		paneTargets["logs"] = paneID
 	}
 
-	def, ok := agent.Get(agentType)
-	if !ok {
-		cleanup()
-		return nil, nil, fmt.Errorf("agent type %q is not registered", agentType)
-	}
-	launchCmd := colosseumAgentEnv(id, "agent", agentType, sessionName) + " " + def.Binary
-	for _, flag := range def.LaunchFlags {
-		launchCmd += " " + flag
-	}
-	if err := m.sessions.SendKeys(ctx, agentPaneID, launchCmd, tmux.SendOptions{}); err != nil {
-		cleanup()
-		return nil, nil, fmt.Errorf("launching agent %q: %w", agentType, err)
-	}
-
 	return &Workspace{
 		ID:                id,
 		Title:             title,
@@ -693,11 +695,63 @@ func (m *Manager) createRuntime(ctx context.Context, title string, agentType age
 	}, cleanup, nil
 }
 
+func (m *Manager) launchAgent(ctx context.Context, ws Workspace) error {
+	def, ok := agent.Get(ws.AgentType)
+	if !ok {
+		return fmt.Errorf("agent type %q is not registered", ws.AgentType)
+	}
+	agentPaneID := ws.PaneTargets["agent"]
+	if agentPaneID == "" {
+		return fmt.Errorf("workspace %q has no agent pane", ws.Title)
+	}
+
+	launchCmd := colosseumAgentEnv(ws.ID, "agent", ws.AgentType) + " " + def.Binary
+	for _, flag := range def.LaunchFlags {
+		launchCmd += " " + flag
+	}
+	if err := m.sessions.SendKeys(ctx, agentPaneID, launchCmd, tmux.SendOptions{}); err != nil {
+		return fmt.Errorf("launching agent %q: %w", ws.AgentType, err)
+	}
+	return nil
+}
+
 func (m *Manager) rollbackCandidates(created []createdCandidate) {
 	for i := len(created) - 1; i >= 0; i-- {
 		_ = m.sessions.KillSession(context.Background(), created[i].workspace.SessionName)
 		_ = m.checkouts.Remove(context.Background(), created[i].checkout.RepoRoot, created[i].checkout.Branch)
 	}
+}
+
+func (m *Manager) removeExperimentState(ctx context.Context, experimentID string) error {
+	return m.store.UpdateState(func(state *State) error {
+		workspaceIDs := make(map[string]struct{})
+		checkoutIDs := make(map[string]struct{})
+		for _, experiment := range state.Experiments {
+			if experiment.ID != experimentID {
+				continue
+			}
+			for _, id := range experiment.WorkspaceIDs {
+				workspaceIDs[id] = struct{}{}
+			}
+			for _, id := range experiment.CheckoutIDs {
+				checkoutIDs[id] = struct{}{}
+			}
+			break
+		}
+
+		state.Workspaces = filterWorkspacesBySet(state.Workspaces, workspaceIDs)
+		state.Checkouts = filterCheckoutsBySet(state.Checkouts, checkoutIDs)
+		state.AgentStatusReports = filterReportsByWorkspaceSet(state.AgentStatusReports, workspaceIDs)
+
+		experiments := make([]Experiment, 0, len(state.Experiments))
+		for _, experiment := range state.Experiments {
+			if experiment.ID != experimentID {
+				experiments = append(experiments, experiment)
+			}
+		}
+		state.Experiments = experiments
+		return nil
+	})
 }
 
 func (m *Manager) prefixedSessionName(title string) string {
@@ -711,15 +765,14 @@ func (m *Manager) workspaceSessionName(ws Workspace) string {
 	return m.prefixedSessionName(ws.Title)
 }
 
-func colosseumAgentEnv(workspaceID string, pane string, agentType agent.AgentType, sessionName string) string {
+func colosseumAgentEnv(workspaceID string, pane string, agentType agent.AgentType) string {
 	values := map[string]string{
 		"COLOSSEUM_ENV":          "1",
 		"COLOSSEUM_WORKSPACE_ID": workspaceID,
 		"COLOSSEUM_PANE":         pane,
 		"COLOSSEUM_AGENT":        string(agentType),
-		"COLOSSEUM_SESSION":      sessionName,
 	}
-	keys := []string{"COLOSSEUM_ENV", "COLOSSEUM_WORKSPACE_ID", "COLOSSEUM_PANE", "COLOSSEUM_AGENT", "COLOSSEUM_SESSION"}
+	keys := []string{"COLOSSEUM_ENV", "COLOSSEUM_WORKSPACE_ID", "COLOSSEUM_PANE", "COLOSSEUM_AGENT"}
 	parts := make([]string, 0, len(keys))
 	for _, key := range keys {
 		parts = append(parts, key+"="+shellQuote(values[key]))
@@ -818,6 +871,45 @@ func filterCheckouts(checkouts []Checkout, id string) []Checkout {
 	for _, checkout := range checkouts {
 		if checkout.ID != id {
 			filtered = append(filtered, checkout)
+		}
+	}
+	return filtered
+}
+
+func filterWorkspacesBySet(workspaces []Workspace, ids map[string]struct{}) []Workspace {
+	if len(ids) == 0 {
+		return workspaces
+	}
+	filtered := make([]Workspace, 0, len(workspaces))
+	for _, ws := range workspaces {
+		if _, ok := ids[ws.ID]; !ok {
+			filtered = append(filtered, ws)
+		}
+	}
+	return filtered
+}
+
+func filterCheckoutsBySet(checkouts []Checkout, ids map[string]struct{}) []Checkout {
+	if len(ids) == 0 {
+		return checkouts
+	}
+	filtered := make([]Checkout, 0, len(checkouts))
+	for _, checkout := range checkouts {
+		if _, ok := ids[checkout.ID]; !ok {
+			filtered = append(filtered, checkout)
+		}
+	}
+	return filtered
+}
+
+func filterReportsByWorkspaceSet(reports []AgentStatusReport, workspaceIDs map[string]struct{}) []AgentStatusReport {
+	if len(workspaceIDs) == 0 {
+		return reports
+	}
+	filtered := make([]AgentStatusReport, 0, len(reports))
+	for _, report := range reports {
+		if _, ok := workspaceIDs[report.WorkspaceID]; !ok {
+			filtered = append(filtered, report)
 		}
 	}
 	return filtered

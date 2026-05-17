@@ -31,6 +31,7 @@ type mockSessionCreator struct {
 	sendKeysErrs  map[string]error
 	renameErrs    []error
 	renameErr     error
+	onSendKeys    func(target string, keys string)
 }
 
 type mockRenameCall struct {
@@ -123,6 +124,9 @@ func (m *mockSessionCreator) SwitchClient(_ context.Context, name string) error 
 
 func (m *mockSessionCreator) SendKeys(_ context.Context, target string, keys string, opts tmux.SendOptions) error {
 	m.sendKeysCalls = append(m.sendKeysCalls, mockSendKeysCall{Target: target, Keys: keys, Opts: opts})
+	if m.onSendKeys != nil {
+		m.onSendKeys(target, keys)
+	}
 	if err, ok := m.sendKeysErrs[target]; ok {
 		return err
 	}

@@ -13,6 +13,10 @@ import (
 
 func TestManagerCreate(t *testing.T) {
 	h := newManagerHarness(t)
+	workspacePersistedBeforeLaunch := false
+	h.sessions.onSendKeys = func(_ string, _ string) {
+		workspacePersistedBeforeLaunch = len(h.mustList(t)) == 1
+	}
 
 	ws := h.mustCreate(t, "my-workspace", agent.Claude, "/tmp/project", "feature-branch", LayoutAgentShell)
 
@@ -56,6 +60,12 @@ func TestManagerCreate(t *testing.T) {
 	launchKeys := h.sessions.sendKeysCalls[0].Keys
 	if !strings.Contains(launchKeys, "COLOSSEUM_ENV='1'") || !strings.Contains(launchKeys, "COLOSSEUM_WORKSPACE_ID='") || !strings.Contains(launchKeys, "COLOSSEUM_PANE='agent'") || !strings.HasSuffix(launchKeys, " claude") {
 		t.Errorf("send-keys = %q, want Colosseum env vars and claude launch", launchKeys)
+	}
+	if strings.Contains(launchKeys, "COLOSSEUM_SESSION") {
+		t.Errorf("send-keys = %q, should not include mutable session env", launchKeys)
+	}
+	if !workspacePersistedBeforeLaunch {
+		t.Fatal("workspace should be persisted before launching the agent")
 	}
 
 	if got := len(h.mustList(t)); got != 1 {
@@ -118,6 +128,9 @@ func TestManagerCreateReturnsLaunchError(t *testing.T) {
 	}
 	if len(h.sessions.killCalls) != 1 || h.sessions.killCalls[0] != "colo-launch-fail" {
 		t.Fatalf("kill calls = %v, want rollback for launch-fail workspace", h.sessions.killCalls)
+	}
+	if got := len(h.mustList(t)); got != 0 {
+		t.Fatalf("stored workspaces after launch rollback = %d, want 0", got)
 	}
 }
 
