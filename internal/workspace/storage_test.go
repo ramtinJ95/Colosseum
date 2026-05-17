@@ -58,6 +58,34 @@ func TestStoreRemove(t *testing.T) {
 	}
 }
 
+func TestStoreRemoveDeletesAgentStatusReports(t *testing.T) {
+	store := newTestStore(t)
+	if err := store.SaveState(State{
+		Workspaces: []Workspace{
+			newTestWorkspace("id-1", "ws-1"),
+			newTestWorkspace("id-2", "ws-2"),
+		},
+		AgentStatusReports: []AgentStatusReport{
+			{WorkspaceID: "id-1", Pane: "agent", Status: "Working"},
+			{WorkspaceID: "id-2", Pane: "agent", Status: "Idle"},
+		},
+	}); err != nil {
+		t.Fatalf("SaveState: %v", err)
+	}
+
+	if err := store.Remove("id-1"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+
+	state, err := store.LoadState()
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	if len(state.AgentStatusReports) != 1 || state.AgentStatusReports[0].WorkspaceID != "id-2" {
+		t.Fatalf("reports = %+v, want only id-2", state.AgentStatusReports)
+	}
+}
+
 func TestStoreUpdate(t *testing.T) {
 	store := newTestStore(t)
 

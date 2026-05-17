@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,21 +47,25 @@ func (s *Store) SaveState(state State) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.saveStateUnsafe(state)
+	return s.withFileLock(func() error {
+		return s.saveStateUnsafe(state)
+	})
 }
 
 func (s *Store) UpdateState(update func(*State) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	state, err := s.loadStateUnsafe()
-	if err != nil {
-		return err
-	}
-	if err := update(&state); err != nil {
-		return err
-	}
-	return s.saveStateUnsafe(state)
+	return s.withFileLock(func() error {
+		state, err := s.loadStateUnsafe()
+		if err != nil {
+			return err
+		}
+		if err := update(&state); err != nil {
+			return err
+		}
+		return s.saveStateUnsafe(state)
+	})
 }
 
 func (s *Store) Add(ws Workspace) error {
@@ -79,6 +84,14 @@ func (s *Store) Remove(id string) error {
 			}
 		}
 		state.Workspaces = filtered
+
+		reports := make([]AgentStatusReport, 0, len(state.AgentStatusReports))
+		for _, report := range state.AgentStatusReports {
+			if report.WorkspaceID != id {
+				reports = append(reports, report)
+			}
+		}
+		state.AgentStatusReports = reports
 		return nil
 	})
 }
@@ -110,6 +123,26 @@ func (s *Store) Get(id string) (Workspace, bool, error) {
 
 func (s *Store) List() ([]Workspace, error) {
 	return s.Load()
+}
+
+func (s *Store) withFileLock(fn func() error) error {
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+		return fmt.Errorf("creating directory for %s: %w", s.path, err)
+	}
+
+	lockPath := s.path + ".lock"
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		return fmt.Errorf("opening lock file %s: %w", lockPath, err)
+	}
+	defer lockFile.Close()
+
+	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err != nil {
+		return fmt.Errorf("locking %s: %w", lockPath, err)
+	}
+	defer func() { _ = syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN) }()
+
+	return fn()
 }
 
 func (s *Store) loadStateUnsafe() (State, error) {
