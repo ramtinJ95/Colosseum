@@ -133,6 +133,9 @@ func TestPollerPrefersReportedStatus(t *testing.T) {
 	if update.Current != agent.StatusWorking {
 		t.Errorf("reported status should override terminal content, got %s", update.Current)
 	}
+	if update.PaneContent != testIdleContent {
+		t.Errorf("reported status update content = %q, want captured pane content", update.PaneContent)
+	}
 }
 
 func TestRefreshWorkspaceStatuses(t *testing.T) {

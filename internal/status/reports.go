@@ -13,14 +13,33 @@ const DefaultReportMaxAge = 30 * time.Minute
 
 func ResolveWorkspaceStatus(ctx context.Context, detector *Detector, ws workspace.Workspace, reports []workspace.AgentStatusReport) (agent.Status, string, error) {
 	if reported, ok := SelectReport(ws, "agent", reports, time.Now(), DefaultReportMaxAge); ok {
-		return reported, "", nil
+		content := ""
+		if detector != nil {
+			content = captureWorkspacePaneContent(ctx, detector, ws)
+		}
+		return reported, content, nil
 	}
 
 	agentPane, ok := ws.PaneTargets["agent"]
 	if !ok || strings.TrimSpace(agentPane) == "" {
 		return agent.StatusStopped, "", nil
 	}
+	if detector == nil {
+		return agent.StatusUnknown, "", nil
+	}
 	return detector.Detect(ctx, agentPane, ws.AgentType)
+}
+
+func captureWorkspacePaneContent(ctx context.Context, detector *Detector, ws workspace.Workspace) string {
+	agentPane, ok := ws.PaneTargets["agent"]
+	if !ok || strings.TrimSpace(agentPane) == "" {
+		return ""
+	}
+	content, err := detector.capturer.CapturePane(ctx, agentPane, detector.captureLines)
+	if err != nil {
+		return ""
+	}
+	return content
 }
 
 func SelectReport(ws workspace.Workspace, pane string, reports []workspace.AgentStatusReport, now time.Time, maxAge time.Duration) (agent.Status, bool) {
