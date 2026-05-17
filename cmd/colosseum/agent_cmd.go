@@ -11,6 +11,7 @@ import (
 
 	agentpkg "github.com/ramtinj/colosseum/internal/agent"
 	"github.com/ramtinj/colosseum/internal/cliapi"
+	statuspkg "github.com/ramtinj/colosseum/internal/status"
 	"github.com/ramtinj/colosseum/internal/workspace"
 )
 
@@ -108,8 +109,12 @@ func reportAgentStatus(_ context.Context, out io.Writer, store *workspace.Store,
 			return err
 		}
 		pane := normalizedPane(opts.Pane)
-		if _, err := resolvePaneTarget(resolved, pane); err != nil {
+		target, err := resolvePaneTarget(resolved, pane)
+		if err != nil {
 			return err
+		}
+		if !isAgentPaneReport(resolved, pane, target) {
+			return fmt.Errorf("agent status reports only support the agent pane")
 		}
 
 		agentType := resolved.AgentType
@@ -117,6 +122,9 @@ func reportAgentStatus(_ context.Context, out io.Writer, store *workspace.Store,
 			agentType = agentpkg.AgentType(strings.TrimSpace(opts.Agent))
 			if !agentpkg.IsSupported(agentType) {
 				return fmt.Errorf("unsupported agent type %q", agentType)
+			}
+			if agentType != resolved.AgentType {
+				return fmt.Errorf("reported agent %q does not match workspace agent %q", agentType, resolved.AgentType)
 			}
 		}
 
@@ -157,12 +165,28 @@ func releaseAgentStatus(_ context.Context, out io.Writer, store *workspace.Store
 			return err
 		}
 		pane := normalizedPane(opts.Pane)
-		if _, err := resolvePaneTarget(resolved, pane); err != nil {
+		target, err := resolvePaneTarget(resolved, pane)
+		if err != nil {
 			return err
+		}
+		if !isAgentPaneReport(resolved, pane, target) {
+			return fmt.Errorf("agent status reports only support the agent pane")
 		}
 
 		ws = resolved
 		state.AgentStatusReports, released = filterReleasedAgentStatusReports(state.AgentStatusReports, resolved, pane, opts.Agent, opts.Source)
+		if released > 0 {
+			ws.Status = agentpkg.StatusUnknown
+			if reported, ok := statuspkg.SelectReport(resolved, "agent", state.AgentStatusReports, time.Now(), statuspkg.DefaultReportMaxAge); ok {
+				ws.Status = reported
+			}
+			for i := range state.Workspaces {
+				if state.Workspaces[i].ID == resolved.ID {
+					state.Workspaces[i].Status = ws.Status
+					break
+				}
+			}
+		}
 		return nil
 	}); err != nil {
 		return err
@@ -189,6 +213,10 @@ func filterReleasedAgentStatusReports(reports []workspace.AgentStatusReport, ws 
 	agentValue = strings.TrimSpace(agentValue)
 	source = strings.TrimSpace(source)
 	target := ws.PaneTargets[pane]
+	if target == "" && pane == ws.PaneTargets["agent"] {
+		target = pane
+		pane = "agent"
+	}
 	filtered := reports[:0]
 	released := 0
 	for _, report := range reports {
@@ -214,4 +242,8 @@ func normalizedPane(pane string) string {
 		return "agent"
 	}
 	return pane
+}
+
+func isAgentPaneReport(ws workspace.Workspace, pane string, target string) bool {
+	return pane == "agent" || (target != "" && target == ws.PaneTargets["agent"])
 }

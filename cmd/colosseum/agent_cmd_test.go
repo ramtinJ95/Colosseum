@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ramtinj/colosseum/internal/agent"
@@ -72,6 +73,41 @@ func TestReleaseAgentStatusRemovesMatchingReports(t *testing.T) {
 	}
 	if len(state.AgentStatusReports) != 0 {
 		t.Fatalf("reports = %+v, want none", state.AgentStatusReports)
+	}
+	if got := state.Workspaces[0].Status; got != agent.StatusUnknown {
+		t.Fatalf("workspace status = %s, want Unknown after release", got)
+	}
+}
+
+func TestReportAgentStatusRejectsMismatchedAgent(t *testing.T) {
+	store := newAgentCommandTestStore(t)
+	err := reportAgentStatus(context.Background(), &bytes.Buffer{}, store, agentReportOptions{
+		Workspace: "ws-1",
+		Pane:      "agent",
+		Agent:     string(agent.Codex),
+		Status:    "working",
+	}, false)
+	if err == nil || !strings.Contains(err.Error(), "does not match workspace agent") {
+		t.Fatalf("error = %v, want mismatched agent error", err)
+	}
+}
+
+func TestReportAgentStatusRejectsNonAgentPane(t *testing.T) {
+	store := newAgentCommandTestStore(t)
+	if err := store.UpdateState(func(state *workspace.State) error {
+		state.Workspaces[0].PaneTargets["shell"] = "%4"
+		return nil
+	}); err != nil {
+		t.Fatalf("UpdateState: %v", err)
+	}
+
+	err := reportAgentStatus(context.Background(), &bytes.Buffer{}, store, agentReportOptions{
+		Workspace: "ws-1",
+		Pane:      "shell",
+		Status:    "working",
+	}, false)
+	if err == nil || !strings.Contains(err.Error(), "only support the agent pane") {
+		t.Fatalf("error = %v, want non-agent pane error", err)
 	}
 }
 
