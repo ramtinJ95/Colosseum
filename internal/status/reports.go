@@ -36,6 +36,9 @@ func SelectReport(ws workspace.Workspace, pane string, reports []workspace.Agent
 		if report.WorkspaceID != ws.ID {
 			continue
 		}
+		if report.AgentType != "" && report.AgentType != ws.AgentType {
+			continue
+		}
 		if !reportMatchesPane(report.Pane, pane, target) {
 			continue
 		}
